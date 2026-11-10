@@ -41,4 +41,10 @@ const orderSchema = new mongoose.Schema(
   }
 );
 
+// Buyer's orders, seller's sales, and open-order checks on a listing.
+orderSchema.index({ buyer: 1, createdAt: -1 });
+orderSchema.index({ seller: 1, createdAt: -1 });
+orderSchema.index({ listing: 1, status: 1 });
+orderSchema.index({ status: 1, createdAt: -1 });
+
 export default mongoose.models.Order || mongoose.model('Order', orderSchema);

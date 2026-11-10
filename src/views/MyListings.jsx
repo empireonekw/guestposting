@@ -147,6 +147,9 @@ const MyListings = () => {
                         site.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 
                         site.status === 'rejected' ? 'bg-red-50 text-red-700 border-red-100' : 'bg-amber-50 text-amber-700 border-amber-100'
                       }`}>{site.status}</span>
+                      {site.status === 'rejected' && site.rejectionReason && (
+                        <p className="text-[12px] text-red-700 mt-1.5 max-w-[240px]">{site.rejectionReason}</p>
+                      )}
                     </td>
                     <td className="p-4 font-bold text-slate-900 text-[16px]">${site.price}</td>
                     <td className="p-4 text-right pr-6">

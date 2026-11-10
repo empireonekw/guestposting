@@ -53,12 +53,12 @@ const Register = () => {
             Build your high-authority backlink profile.
           </h2>
           <p className="text-slate-400 text-lg leading-relaxed mb-10">
-            Join thousands of SEO professionals accessing verified publishers, or monetize your own domains with secure escrow protection.
+            Join thousands of SEO professionals accessing verified publishers, or earn from your own websites by publishing guest posts.
           </p>
 
           <div className="space-y-5">
             <div className="flex items-center gap-3 text-sm font-medium text-slate-300 bg-white/5 w-fit px-4 py-2 rounded-full border border-white/10">
-              <ShieldCheck className="text-emerald-400" size={18} /> Secure Escrow Payments
+              <ShieldCheck className="text-emerald-400" size={18} /> Every website reviewed by our team
             </div>
             <div className="flex items-center gap-3 text-sm font-medium text-slate-300 bg-white/5 w-fit px-4 py-2 rounded-full border border-white/10">
               <TrendingUp className="text-blue-400" size={18} /> Zero Manual Outreach

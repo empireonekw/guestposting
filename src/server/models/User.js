@@ -39,11 +39,17 @@ const userSchema = new mongoose.Schema(
     },
     
     // --- PASSWORD RECOVERY FIELDS ---
+    // HMAC of the 6-digit code, never the code itself, and never sent to clients.
     resetPasswordOtp: { 
-      type: String 
+      type: String,
+      select: false
     },
     resetPasswordExpire: { 
       type: Date 
+    },
+    resetPasswordAttempts: {
+      type: Number,
+      default: 0
     },
 
     // --- FINANCIAL WALLET FIELDS ---
@@ -60,5 +66,8 @@ const userSchema = new mongoose.Schema(
     timestamps: true, 
   }
 );
+
+// Admin user list: newest first, filtered by role.
+userSchema.index({ role: 1, createdAt: -1 });
 
 export default mongoose.models.User || mongoose.model('User', userSchema);

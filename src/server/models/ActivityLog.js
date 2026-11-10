@@ -8,4 +8,6 @@ const activityLogSchema = new mongoose.Schema({
   ipAddress: { type: String }
 }, { timestamps: true });
 
+activityLogSchema.index({ createdAt: -1 });
+
 export default mongoose.models.ActivityLog || mongoose.model('ActivityLog', activityLogSchema);

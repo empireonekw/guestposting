@@ -7,8 +7,8 @@ const Services = () => {
   const features = [
     { 
       icon: <ShieldCheck size={24}/>, 
-      title: 'Secure Escrow', 
-      desc: 'Transactions are protected by our automated escrow. Funds are only released to the publisher once the placement is verified live.',
+      title: 'Reviewed Websites', 
+      desc: 'Every website is checked by our team before it appears in the marketplace, and you can chat with the publisher on every order.',
       color: 'blue'
     },
     { 

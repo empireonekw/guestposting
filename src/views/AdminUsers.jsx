@@ -2,10 +2,15 @@
 
 import React, { useState, useEffect } from 'react';
 import api from '@/lib/api';
-import { Mail, ShieldCheck, Ban, Shield, User as UserIcon, Store, Loader2, CheckCircle2, AlertCircle, X } from 'lucide-react';
+import { Mail, ShieldCheck, Ban, Shield, User as UserIcon, Store, Loader2, CheckCircle2, AlertCircle, X, Search } from 'lucide-react';
+import Pagination from '@/components/Pagination';
 
 const AdminUsers = () => {
   const [users, setUsers] = useState([]);
+  const [paging, setPaging] = useState({ page: 1, pages: 1, total: 0, limit: 25 });
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
   
   // App States
   const [loading, setLoading] = useState(true);
@@ -22,8 +27,12 @@ const AdminUsers = () => {
 
   const fetchUsers = async () => {
     try {
-      const { data } = await api.get('/admin/users');
-      setUsers(data);
+      const params = new URLSearchParams({ page: String(page) });
+      if (search.trim()) params.append('search', search.trim());
+      if (roleFilter) params.append('role', roleFilter);
+      const { data } = await api.get(`/admin/users?${params.toString()}`);
+      setUsers(data.users);
+      setPaging({ page: data.page, pages: data.pages, total: data.total, limit: data.limit });
     } catch (err) { 
       showNotification('error', "Failed to fetch user database."); 
     } finally {
@@ -31,7 +40,13 @@ const AdminUsers = () => {
     }
   };
 
-  useEffect(() => { fetchUsers(); }, []);
+  useEffect(() => {
+    const t = setTimeout(fetchUsers, 300);
+    return () => clearTimeout(t);
+  }, [page, search, roleFilter]);
+
+  // A new search or role filter starts again from page 1.
+  useEffect(() => { setPage(1); }, [search, roleFilter]);
 
   // Fires the API call when the inline confirm button is clicked
   const executeSuspensionToggle = async (user) => {
@@ -48,7 +63,7 @@ const AdminUsers = () => {
       showNotification('success', `User successfully ${action}ed.`);
       await fetchUsers();
     } catch (err) { 
-      showNotification('error', "Failed to update account status."); 
+      showNotification('error', err.response?.data?.message || "Failed to update account status."); 
     } finally {
       setProcessingAction({ id: null, type: null });
     }
@@ -61,7 +76,7 @@ const AdminUsers = () => {
       showNotification('success', "User role updated.");
       await fetchUsers();
     } catch (err) { 
-      showNotification('error', "Failed to update role."); 
+      showNotification('error', err.response?.data?.message || "Failed to update role."); 
     } finally {
       setProcessingAction({ id: null, type: null });
     }
@@ -97,6 +112,34 @@ const AdminUsers = () => {
       <div className="mb-8 border-b border-slate-200 pb-5">
         <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">User Management</h1>
         <p className="text-[14px] text-slate-500 mt-1">Monitor account activity, assign roles, and enforce platform policies.</p>
+      </div>
+
+      {/* Search and role filter */}
+      <div className="flex flex-col sm:flex-row gap-3 mb-4">
+        <label className="relative flex-1">
+          <span className="sr-only">Search users by name or email</span>
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name or email..."
+            className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-[13px] outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+          />
+        </label>
+        <label>
+          <span className="sr-only">Filter by role</span>
+          <select
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value)}
+            className="w-full sm:w-44 px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-[13px] outline-none focus:border-blue-500"
+          >
+            <option value="">All roles</option>
+            <option value="buyer">Buyers</option>
+            <option value="seller">Sellers</option>
+            <option value="admin">Admins</option>
+          </select>
+        </label>
       </div>
 
       {/* Main Table Card */}
@@ -155,6 +198,9 @@ const AdminUsers = () => {
                           </div>
                           <div>
                             <span className={`font-semibold text-[14px] ${u.isSuspended ? 'text-slate-500' : 'text-slate-900'}`}>{u.name}</span>
+                            {u.isOwner && (
+                              <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-indigo-50 text-indigo-700 border border-indigo-100">Owner</span>
+                            )}
                             <div className="flex items-center gap-1.5 text-slate-500 text-[12px] mt-0.5">
                               <Mail size={12} /> {u.email}
                             </div>
@@ -168,7 +214,8 @@ const AdminUsers = () => {
                           <select 
                             value={u.role} 
                             onChange={(e) => handleRoleChange(u._id, e.target.value)}
-                            disabled={isProcessingRole}
+                            disabled={isProcessingRole || u.isOwner}
+                            title={u.isOwner ? "The site owner always stays an admin" : undefined}
                             className={`w-full appearance-none bg-slate-50 border border-slate-200 text-slate-700 text-[12px] font-medium rounded-lg pl-8 pr-8 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed`}
                           >
                             <option value="buyer">Buyer</option>
@@ -223,7 +270,10 @@ const AdminUsers = () => {
                             </div>
                           )}
 
-                          {/* MAIN ACTION BUTTON */}
+                          {/* MAIN ACTION BUTTON (the owner can't be suspended) */}
+                          {u.isOwner ? (
+                            <span className="text-[12px] font-medium text-slate-400">Protected</span>
+                          ) : (
                           <button 
                             onClick={() => setActiveConfirmId(u._id)}
                             disabled={isProcessingSuspension || showConfirm}
@@ -239,6 +289,7 @@ const AdminUsers = () => {
                               u.isSuspended ? 'Activate' : 'Suspend'
                             )}
                           </button>
+                          )}
                         </div>
                       </td>
 
@@ -250,6 +301,10 @@ const AdminUsers = () => {
           </table>
         </div>
       </div>
+
+      {!loading && (
+        <Pagination page={paging.page} pages={paging.pages} total={paging.total} limit={paging.limit} onChange={setPage} label="users" />
+      )}
     </div>
   );
 };

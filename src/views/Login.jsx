@@ -51,7 +51,7 @@ const Login = () => {
             Your SEO command center, simplified.
           </h2>
           <p className="text-slate-400 text-lg leading-relaxed mb-10">
-            Access your secure escrow, collaborate with publishers, and scale your guest post placements from a single dashboard.
+            Find reviewed publishers, collaborate with them in order chat, and scale your guest post placements from a single dashboard.
           </p>
 
           <div className="space-y-5">

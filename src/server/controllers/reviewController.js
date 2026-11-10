@@ -1,21 +1,26 @@
 import Review from '../models/Review';
 import Order from '../models/Order';
-import { json, readBody } from '../http';
+import { json, readBody, serverError } from '../http';
+import { str, num, objectId } from '../validate';
 
 export const createReview = async (request, params, user) => {
   try {
-    const { orderId, rating, comment } = await readBody(request);
+    const body = await readBody(request);
+    const orderId = objectId(body.orderId, 'orderId', 'Order');
+    const rating = num(body.rating, 'rating', 'Rating', { min: 1, max: 5, integer: true });
+    const comment = str(body.comment, 'comment', 'Review', { min: 2, max: 2000 });
 
     const order = await Order.findById(orderId);
-
     if (!order) return json({ message: 'Order not found' }, 404);
 
     if (order.status !== 'published') {
       return json({ message: 'You can only review completed orders' }, 400);
     }
-
     if (order.buyer.toString() !== user.id) {
-      return json({ message: 'Only the buyer can leave a review' }, 401);
+      return json({ message: 'Only the buyer can leave a review' }, 403);
+    }
+    if (await Review.exists({ order: orderId })) {
+      return json({ message: 'You have already reviewed this order' }, 400);
     }
 
     const review = await Review.create({
@@ -28,17 +33,19 @@ export const createReview = async (request, params, user) => {
 
     return json(review, 201);
   } catch (error) {
-    return json({ message: error.message }, 500);
+    return serverError(error);
   }
 };
 
 export const getSellerReviews = async (request, params) => {
   try {
-    const reviews = await Review.find({ seller: params.id })
+    const sellerId = objectId(params.id, 'id', 'Seller');
+    const reviews = await Review.find({ seller: sellerId })
       .populate('buyer', 'name')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .limit(100);
     return json(reviews);
   } catch (error) {
-    return json({ message: error.message }, 500);
+    return serverError(error);
   }
 };

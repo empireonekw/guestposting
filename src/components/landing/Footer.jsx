@@ -91,7 +91,7 @@ export const Footer = () => {
             </span>
             <span className="flex items-center gap-1.5">
               <ShieldCheck size={14} className="text-blue-500" />
-              Secured Payments
+              Reviewed Listings
             </span>
           </div>
         </div>

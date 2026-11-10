@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
+import Pagination from '@/components/Pagination';
 import {
   TrendingUp,
   Shield,
@@ -25,6 +26,8 @@ import {
 const Dashboard = () => {
   const router = useRouter();
   const [listings, setListings] = useState([]);
+  const [paging, setPaging] = useState({ page: 1, pages: 1, total: 0, limit: 25 });
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -61,6 +64,7 @@ const Dashboard = () => {
 
     try {
       const params = new URLSearchParams();
+      params.append("page", page);
       if (search) params.append("search", search);
       if (category !== "All") params.append("category", category);
       if (sortBy !== "default") params.append("sort", sortBy);
@@ -70,9 +74,10 @@ const Dashboard = () => {
       });
 
       const { data } = await api.get(`/listings?${params.toString()}`);
-      setListings(data);
+      setListings(data.listings);
+      setPaging({ page: data.page, pages: data.pages, total: data.total, limit: data.limit });
     } catch (err) {
-      showNotification("error", "Failed to sync marketplace data.");
+      showNotification("error", err.response?.data?.message || "Failed to sync marketplace data.");
     } finally {
       setLoading(false);
       setIsRefreshing(false);
@@ -84,7 +89,17 @@ const Dashboard = () => {
       fetchListings();
     }, 500);
     return () => clearTimeout(delayDebounceFn);
+  }, [search, category, filters, sortBy, page]);
+
+  // Any change to the search or filters starts again from page 1.
+  useEffect(() => {
+    setPage(1);
   }, [search, category, filters, sortBy]);
+
+  const changePage = (next) => {
+    setPage(next);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   const handleFilterChange = (e) => {
     setFilters({ ...filters, [e.target.name]: e.target.value });
@@ -99,7 +114,7 @@ const Dashboard = () => {
     } catch (err) {
       showNotification(
         "error",
-        err.response?.data?.message || "Check your balance and try again.",
+        err.response?.data?.message || "Could not place the order. Please try again.",
       );
     } finally {
       setPurchaseLoading(false);
@@ -302,7 +317,7 @@ const Dashboard = () => {
             <p className="text-[13px] font-medium text-slate-500">
               Showing{" "}
               <span className="text-slate-900 font-bold">
-                {listings.length}
+                {paging.total.toLocaleString()}
               </span>{" "}
               Results
             </p>
@@ -476,11 +491,11 @@ const Dashboard = () => {
                             {purchaseLoading ? (
                               <Loader2 size={18} className="animate-spin" />
                             ) : (
-                              "Confirm Payment"
+                              "Place order"
                             )}
                           </button>
-                          <p className="text-[10px] text-center text-slate-400 font-semibold uppercase tracking-tighter mt-2">
-                            Funds protected by LetRank Escrow
+                          <p className="text-[11px] text-center text-slate-500 font-medium mt-2">
+                            You'll send your brief to the publisher after placing the order.
                           </p>
                         </div>
                       </div>
@@ -490,6 +505,17 @@ const Dashboard = () => {
               ))
             )}
           </div>
+
+          {!loading && (
+            <Pagination
+              page={paging.page}
+              pages={paging.pages}
+              total={paging.total}
+              limit={paging.limit}
+              onChange={changePage}
+              label="websites"
+            />
+          )}
         </div>
       </div>
 

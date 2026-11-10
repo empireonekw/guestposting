@@ -2,17 +2,22 @@
 
 import React, { useState, useEffect } from 'react';
 import api from '@/lib/api';
+import Pagination from '@/components/Pagination';
 import { Activity, User, ShieldAlert, CheckCircle2, Terminal, Loader2 } from 'lucide-react';
 
 const AdminLogs = () => {
   const [logs, setLogs] = useState([]);
+  const [paging, setPaging] = useState({ page: 1, pages: 1, total: 0, limit: 50 });
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchLogs = async () => {
+      setLoading(true);
       try {
-        const { data } = await api.get('/admin/logs'); 
-        setLogs(data);
+        const { data } = await api.get(`/admin/logs?page=${page}`);
+        setLogs(data.logs);
+        setPaging({ page: data.page, pages: data.pages, total: data.total, limit: data.limit });
       } catch (err) { 
         console.error(err); 
       } finally {
@@ -20,7 +25,7 @@ const AdminLogs = () => {
       }
     };
     fetchLogs();
-  }, []);
+  }, [page]);
 
   // Design Helper: Dynamically assign colors and icons based on log action
   const getLogStyle = (action = '') => {
@@ -125,6 +130,10 @@ const AdminLogs = () => {
           </div>
         )}
       </div>
+
+      {!loading && (
+        <Pagination page={paging.page} pages={paging.pages} total={paging.total} limit={paging.limit} onChange={setPage} label="log entries" />
+      )}
     </div>
   );
 };

@@ -2,7 +2,7 @@ import User from '../models/User';
 import Order from '../models/Order';
 import Listing from '../models/Listing';
 import Review from '../models/Review';
-import { json } from '../http';
+import { json, serverError } from '../http';
 
 export const getUserProfile = async (request, params, authUser) => {
   try {
@@ -22,7 +22,7 @@ export const getUserProfile = async (request, params, authUser) => {
 
     return json({ user, stats });
   } catch (error) {
-    return json({ message: error.message }, 500);
+    return serverError(error);
   }
 };
 
@@ -44,6 +44,6 @@ export const getPublicSellerProfile = async (request, params) => {
 
     return json({ seller, listings, reviews, avgRating });
   } catch (error) {
-    return json({ message: error.message }, 500);
+    return serverError(error);
   }
 };

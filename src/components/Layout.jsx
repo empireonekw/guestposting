@@ -19,7 +19,6 @@ import {
   CheckCircle2,
   X,
   ChevronRight,
-  LayoutDashboard,
 } from "lucide-react";
 
 const Layout = ({ children }) => {
@@ -103,7 +102,7 @@ const Layout = ({ children }) => {
     { name: userInfo?.role === "seller" ? "My Sales" : "My Purchases", icon: <ShoppingBag size={16} />, path: "/orders", roles: ["buyer", "seller", "admin"] },
     { name: "Add Website", icon: <PlusSquare size={16} />, path: "/add-listing", roles: ["seller", "admin"] },
     { name: "My Inventory", icon: <Layers size={16} />, path: "/my-listings", roles: ["seller", "admin"] },
-    { name: "Wallet & Payouts", icon: <LayoutDashboard size={16} />, path: "/wallet", roles: ["buyer", "seller", "admin"] },
+    // "Wallet & Payouts" comes back with real payments (Module 3); /wallet does not exist yet.
     { name: "Account Settings", icon: <User size={16} />, path: "/profile", roles: ["buyer", "seller", "admin"] },
   ];
 

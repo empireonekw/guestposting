@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
+import Pagination from '@/components/Pagination';
 import { 
   ShoppingBag, ArrowLeft, Clock, Activity, CheckCircle2, 
   XCircle, Loader2, ChevronRight, Search 
@@ -11,6 +12,8 @@ import {
 
 const Orders = () => {
   const [orders, setOrders] = useState([]);
+  const [paging, setPaging] = useState({ page: 1, pages: 1, total: 0, limit: 25 });
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const router = useRouter();
@@ -22,10 +25,12 @@ const Orders = () => {
   // depending on it re-ran this effect after every fetch (an endless request loop).
   useEffect(() => {
     const fetchOrders = async () => {
+      setLoading(true);
       try {
         const endpoint = role === 'seller' ? '/orders/mysales' : '/orders/myorders';
-        const { data } = await api.get(endpoint);
-        setOrders(data);
+        const { data } = await api.get(`${endpoint}?page=${page}`);
+        setOrders(data.orders);
+        setPaging({ page: data.page, pages: data.pages, total: data.total, limit: data.limit });
       } catch (err) {
         setError('Failed to load orders.');
       } finally {
@@ -38,7 +43,7 @@ const Orders = () => {
     } else {
       router.push('/login');
     }
-  }, [role, router]);
+  }, [role, router, page]);
 
   const renderStatusBadge = (status) => {
     const baseClasses = "inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] rounded-full font-semibold uppercase tracking-wide border";
@@ -173,6 +178,10 @@ const Orders = () => {
           </table>
         </div>
       </div>
+
+      {!loading && !error && (
+        <Pagination page={paging.page} pages={paging.pages} total={paging.total} limit={paging.limit} onChange={setPage} label="orders" />
+      )}
     </div>
   );
 };

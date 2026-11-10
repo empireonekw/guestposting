@@ -9,6 +9,7 @@ import './models/Message';
 import './models/Notification';
 import './models/Review';
 import './models/ActivityLog';
+import './models/JobRun';
 
 // One connection per server process, shared across route handlers and
 // survives dev hot reloads.
@@ -16,6 +17,9 @@ const cache = globalThis.__mongoose || (globalThis.__mongoose = { promise: null 
 
 const connectDB = async () => {
   if (mongoose.connection.readyState === 1) return mongoose.connection;
+  if (!process.env.MONGO_URI) {
+    throw new Error('MONGO_URI is not set. Add it to .env.local (development) or .env (server) and restart.');
+  }
   if (!cache.promise) {
     cache.promise = mongoose
       .connect(process.env.MONGO_URI)

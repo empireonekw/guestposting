@@ -1,5 +1,5 @@
 import Notification from '../models/Notification';
-import { json } from '../http';
+import { json, serverError } from '../http';
 
 export const getNotifications = async (request, params, user) => {
   try {
@@ -8,7 +8,7 @@ export const getNotifications = async (request, params, user) => {
       .limit(20);
     return json(notifications, 200);
   } catch (error) {
-    return json({ message: error.message }, 500);
+    return serverError(error);
   }
 };
 
@@ -26,7 +26,7 @@ export const markAsRead = async (request, params, user) => {
       return json({ message: 'Notification not found' }, 404);
     }
   } catch (error) {
-    return json({ message: error.message }, 500);
+    return serverError(error);
   }
 };
 
@@ -38,6 +38,6 @@ export const markAllRead = async (request, params, user) => {
     );
     return json({ message: 'All notifications marked as read' });
   } catch (error) {
-    return json({ message: error.message }, 500);
+    return serverError(error);
   }
 };

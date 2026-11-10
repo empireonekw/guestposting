@@ -28,8 +28,8 @@ const AuthorityRoots = () => {
     {
       id: "04",
       icon: <ShieldCheck size={20} />,
-      title: "Secure Escrow",
-      desc: "Funds released only after link is confirmed live."
+      title: "Live Link Delivery",
+      desc: "Every order ends with the live URL of your published post."
     }
   ];
 
@@ -148,7 +148,7 @@ const AuthorityRoots = () => {
            </div>
            <span className="w-1 h-1 bg-slate-200 rounded-full"></span>
            <div className="text-slate-400 text-[11px] font-semibold uppercase tracking-widest">
-              Secured Escrow Payments
+              Admin-Reviewed Listings
            </div>
         </div>
       </div>

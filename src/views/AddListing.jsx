@@ -18,6 +18,8 @@ const AddListing = () => {
   
   // Custom Alert State
   const [alert, setAlert] = useState({ show: false, type: '', message: '' });
+  // Rows the server could not import: [{ row, url, message }]
+  const [bulkErrors, setBulkErrors] = useState([]);
 
   // Manual Form States
   const [formData, setFormData] = useState({
@@ -54,10 +56,12 @@ const AddListing = () => {
       const res = await api.post('/listings/bulk', data, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      showNotification('success', res.data.message || 'Bulk upload completed successfully.');
+      setBulkErrors(res.data.errors || []);
+      showNotification(res.data.errors?.length ? 'error' : 'success', res.data.message || 'Bulk upload completed successfully.');
       setFile(null);
     } catch (err) { 
-      showNotification('error', 'Bulk upload failed. Please ensure your CSV matches the required format.'); 
+      setBulkErrors(err.response?.data?.errors || []);
+      showNotification('error', err.response?.data?.message || 'Bulk upload failed. Please ensure your CSV matches the required format.'); 
     }
     setLoading(false);
   };
@@ -211,7 +215,7 @@ const AddListing = () => {
               <p className="text-[14px] text-slate-900 font-medium mb-1">
                 {file ? file.name : "Click to select or drag and drop your .CSV file"}
               </p>
-              <p className="text-[12px] text-slate-500">Maximum file size 5MB</p>
+              <p className="text-[12px] text-slate-500">Maximum file size 1MB, up to 1,000 rows</p>
               <input id="csvInput" type="file" accept=".csv" className="hidden" onChange={e => setFile(e.target.files[0])} />
             </div>
             
@@ -234,6 +238,22 @@ const AddListing = () => {
                 {loading ? <><Loader2 size={16} className="animate-spin" /> Uploading Data...</> : 'Process Bulk Upload'}
               </button>
             </div>
+
+            {bulkErrors.length > 0 && (
+              <div className="border border-red-200 bg-red-50/50 rounded-lg overflow-hidden">
+                <p className="px-4 py-3 text-[13px] font-semibold text-red-800 border-b border-red-200">
+                  These rows were not imported. Fix them and upload just those rows again.
+                </p>
+                <ul className="max-h-64 overflow-y-auto divide-y divide-red-100">
+                  {bulkErrors.map((e) => (
+                    <li key={e.row} className="px-4 py-2 text-[13px] text-red-800">
+                      <span className="font-semibold">Row {e.row}</span>
+                      {e.url && <span className="text-red-700"> ({e.url})</span>}: {e.message}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
       </div>
