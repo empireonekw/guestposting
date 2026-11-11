@@ -8,6 +8,14 @@ import {
   Loader2, CheckCircle2, AlertCircle, X, Globe, BadgeCheck, ShieldQuestion
 } from 'lucide-react';
 import VerifyDomainDialog from '@/components/listing/VerifyDomainDialog';
+import BRAND from '@/data/brand';
+
+const STATUS_LABEL = {
+  approved: 'Live',
+  pending: 'Pending',
+  rejected: 'Rejected',
+  changes_requested: 'Changes requested',
+};
 
 const MyListings = () => {
   const [listings, setListings] = useState([]);
@@ -76,6 +84,13 @@ const MyListings = () => {
         </div>
       )}
       
+      {stats.changesRequested > 0 && (
+        <div className="mb-6 rounded-2xl border border-brand-200 bg-brand-50 px-5 py-4 text-[14px] text-brand-900">
+          <p className="font-semibold">Our team asked for changes on {stats.changesRequested === 1 ? '1 website' : `${stats.changesRequested} websites`}</p>
+          <p className="mt-0.5">See what to change in the Status column below. Once you save your edit, the site goes back into our review queue.</p>
+        </div>
+      )}
+
       {alert.show && (
         <div className={`mb-6 p-4 rounded-xl flex items-start gap-3 border shadow-sm ${
           alert.type === 'success' ? 'bg-emerald-50/50 border-emerald-200 text-emerald-800' : 'bg-red-50/50 border-red-200 text-red-800'
@@ -92,6 +107,7 @@ const MyListings = () => {
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">My Inventory</h1>
           <p className="text-[14px] text-slate-500 mt-1 font-medium">Manage your domains and track performance metrics.</p>
+          <p className="text-[12px] text-slate-400 mt-1">Selling rules, the link guarantee and payouts: <a href="/seller-terms" className="font-semibold text-blue-600 hover:underline">Seller &amp; Payout Terms</a></p>
         </div>
         <button 
           onClick={() => router.push('/add-listing')}
@@ -167,17 +183,26 @@ const MyListings = () => {
                       </div>
                       <p className="mt-1 text-[11px] text-slate-400">
                         {site.metrics?.source === 'checked'
-                          ? `Checked by LetRank · ${new Date(site.metrics.updatedAt).toLocaleDateString()}`
+                          ? `Checked by ${BRAND.name} · ${new Date(site.metrics.updatedAt).toLocaleDateString()}`
                           : 'Your numbers · waiting for our check'}
                       </p>
                     </td>
                     <td className="p-4">
-                      <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wide border ${
+                      <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wide border whitespace-nowrap ${
                         site.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 
-                        site.status === 'rejected' ? 'bg-red-50 text-red-700 border-red-100' : 'bg-amber-50 text-amber-700 border-amber-100'
-                      }`}>{site.status}</span>
+                        site.status === 'rejected' ? 'bg-red-50 text-red-700 border-red-100' :
+                        site.status === 'changes_requested' ? 'bg-brand-50 text-brand-800 border-brand-100' : 'bg-amber-50 text-amber-700 border-amber-100'
+                      }`}>{STATUS_LABEL[site.status] || site.status}</span>
                       {site.status === 'rejected' && site.rejectionReason && (
                         <p className="text-[12px] text-red-700 mt-1.5 max-w-[240px]">{site.rejectionReason}</p>
+                      )}
+                      {site.status === 'changes_requested' && (
+                        <div className="mt-1.5 max-w-[260px] text-[12px]">
+                          {site.reviewNote && <p className="text-brand-900">{site.reviewNote}</p>}
+                          <button type="button" onClick={() => router.push(`/edit-listing/${site._id}`)} className="mt-1 font-semibold text-brand-700 hover:underline">
+                            Edit to fix it →
+                          </button>
+                        </div>
                       )}
                     </td>
                     <td className="p-4 font-bold text-slate-900 text-[16px]">${site.price}</td>

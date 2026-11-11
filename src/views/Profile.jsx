@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import BRAND from '@/data/brand';
 
 const Profile = () => {
   const [profileData, setProfileData] = useState(null);
@@ -181,6 +182,17 @@ const Profile = () => {
             </div>
           </div>
 
+          {user.role === 'seller' && (
+            <div className="rounded-2xl border border-brand-100 bg-brand-50 p-5 text-[13px] text-brand-900">
+              <p className="font-semibold">Payouts</p>
+              <p className="mt-1 leading-relaxed">
+                Seller payouts are paid to your bank through Stripe Connect. Earnings from completed orders, minus commission, become available
+                after a short hold. Payout setup opens when card payments go live.{' '}
+                <Link href="/seller-terms#payouts" className="font-semibold underline">Read the Seller &amp; Payout Terms</Link>
+              </p>
+            </div>
+          )}
+
           {/* Activity Placeholder / Summary Section */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
@@ -204,7 +216,7 @@ const Profile = () => {
                           <Package size={20} />
                        </div>
                        <div>
-                          <p className="text-[14px] font-semibold text-slate-900">LetRank Marketplace Summary</p>
+                          <p className="text-[14px] font-semibold text-slate-900">{BRAND.name} Marketplace Summary</p>
                           <div className="flex items-center gap-3 mt-0.5 text-slate-500 text-[11px] font-medium">
                             <span className="flex items-center gap-1"><Clock size={12}/> Updated Real-time</span>
                             <span>•</span>

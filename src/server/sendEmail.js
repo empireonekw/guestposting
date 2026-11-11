@@ -1,4 +1,6 @@
 import nodemailer from 'nodemailer';
+import { recordEmail } from './telemetry';
+import BRAND from '@/data/brand';
 
 const sendEmail = async (options) => {
   const transporter = nodemailer.createTransport({
@@ -12,14 +14,20 @@ const sendEmail = async (options) => {
   });
 
   const mailOptions = {
-    from: `"LetRank Marketplace" <${process.env.MY_EMAIL}>`,
+    from: `"${BRAND.name}" <${process.env.MY_EMAIL}>`,
     to: options.email,
     subject: options.subject,
     html: options.html || options.text,
     text: options.text,
   };
 
-  await transporter.sendMail(mailOptions);
+  try {
+    await transporter.sendMail(mailOptions);
+    recordEmail(true);
+  } catch (error) {
+    recordEmail(false, error.message);
+    throw error;
+  }
 };
 
 export default sendEmail;

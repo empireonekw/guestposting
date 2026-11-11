@@ -8,6 +8,7 @@ import useSession from '@/lib/useSession';
 import Button from '@/components/ui/Button';
 import Dialog from '@/components/ui/Dialog';
 import { Textarea } from '@/components/ui/Field';
+import BRAND from '@/data/brand';
 
 // Ask a website's seller a question before ordering.
 const MessageSellerButton = ({ listing, className = '' }) => {
@@ -46,7 +47,7 @@ const MessageSellerButton = ({ listing, className = '' }) => {
       >
         <div className="space-y-3">
           <Textarea value={body} maxLength={2000} onChange={(e) => setBody(e.target.value)} placeholder="e.g. Do you accept articles about crypto? Can the link be dofollow?" aria-label="Message" />
-          <p className="text-[12px] text-ink-faint">Keep payments on LetRank. Our team can read marketplace chats to keep everyone safe.</p>
+          <p className="text-[12px] text-ink-faint">Keep payments on {BRAND.name}. Our team can read marketplace chats to keep everyone safe.</p>
           {state.error && <p className="rounded-lg bg-red-50 px-3 py-2 text-[13px] text-red-800">{state.error}</p>}
         </div>
       </Dialog>

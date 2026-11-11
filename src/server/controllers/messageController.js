@@ -7,6 +7,7 @@ import { escapeHtml } from '../escape';
 import { json, readBody, serverError } from '../http';
 import { str, objectId } from '../validate';
 import { rateLimit, MINUTE } from '../rateLimit';
+import BRAND from '@/data/brand';
 
 // Only the order's buyer and seller may read or write its chat.
 const isParticipant = (order, user) =>
@@ -42,7 +43,7 @@ export const sendMessage = async (request, params, user) => {
 
     if (recipient?.email) sendEmailInBackground({
       email: recipient.email,
-      subject: `New Message on LetRank: ${order.listing.url}`,
+      subject: `New message on ${BRAND.name}: ${order.listing.url}`,
       html: `
         <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
           <h2 style="color: #2563eb;">New Message Received</h2>
@@ -51,7 +52,7 @@ export const sendMessage = async (request, params, user) => {
           <blockquote style="background: #f9f9f9; padding: 15px; border-left: 5px solid #2563eb; white-space: pre-wrap;">${escapeHtml(text)}</blockquote>
           <a href="${escapeHtml(process.env.FRONTEND_URL)}/orders/${orderId}"
              style="display: inline-block; background: #2563eb; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-top: 20px;">
-             Reply on LetRank
+             Reply on ${BRAND.name}
           </a>
         </div>
       `,

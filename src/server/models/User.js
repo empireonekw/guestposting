@@ -82,4 +82,7 @@ userSchema.index({ role: 1, sellerStatus: 1 });
 // A seller's effective status (older sellers have none and are approved).
 export const sellerStatusOf = (user) => (user?.role === 'seller' ? user.sellerStatus || 'approved' : null);
 
+// In development a hot reload would otherwise keep the old model, which
+// silently drops fields added since; rebuild it so new fields are saved.
+if (process.env.NODE_ENV !== 'production' && mongoose.models.User) mongoose.deleteModel('User');
 export default mongoose.models.User || mongoose.model('User', userSchema);

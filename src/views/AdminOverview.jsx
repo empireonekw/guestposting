@@ -8,6 +8,7 @@ import {
 import api from '@/lib/api';
 import { money } from '@/lib/format';
 import { OrderValueChart, StatusDonut } from '@/components/admin/OverviewCharts';
+import BRAND from '@/data/brand';
 
 const PERIODS = [7, 30, 90];
 
@@ -90,7 +91,7 @@ const AdminOverview = () => {
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-ink sm:text-4xl">Overview</h1>
-          <p className="mt-2 text-[15px] text-ink-soft">Orders, sign-ups and listings on LetRank, compared with the previous {days} days.</p>
+          <p className="mt-2 text-[15px] text-ink-soft">Orders, sign-ups and listings on {BRAND.name}, compared with the previous {days} days.</p>
         </div>
         <label className="relative inline-flex h-11 items-center gap-2 rounded-full border border-line bg-white pl-4 pr-3 text-[14px] font-medium text-ink shadow-[var(--shadow-card)]">
           <Calendar size={16} className="text-ink-faint" />
@@ -153,11 +154,12 @@ const AdminOverview = () => {
               <h2 className="text-lg font-semibold text-ink">Listings by status</h2>
               <p className="mb-5 text-[14px] text-ink-soft">Every website sellers and our team added</p>
               <StatusDonut
-                total={(t.liveSites + t.pendingSites + t.rejectedSites).toLocaleString()}
+                total={(t.liveSites + t.pendingSites + t.rejectedSites + (t.changesSites || 0)).toLocaleString()}
                 label="Total sites"
                 parts={[
                   { label: 'Live', value: t.liveSites, color: '#059669' },
                   { label: 'Waiting for review', value: t.pendingSites, color: '#d97706' },
+                  { label: 'Changes requested', value: t.changesSites || 0, color: '#8B7CC7' },
                   { label: 'Rejected', value: t.rejectedSites, color: '#dc2626' },
                 ]}
               />

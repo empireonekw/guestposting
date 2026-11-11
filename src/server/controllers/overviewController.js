@@ -100,6 +100,7 @@ export const getOverview = async (request) => {
         liveSites: byStatus.approved || 0,
         pendingSites: byStatus.pending || 0,
         rejectedSites: byStatus.rejected || 0,
+        changesSites: byStatus.changes_requested || 0,
         buyers: byRole.buyer || 0,
         sellers: byRole.seller || 0,
         admins: byRole.admin || 0,

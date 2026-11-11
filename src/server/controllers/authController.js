@@ -7,6 +7,7 @@ import { generateToken } from '../auth';
 import { json, readBody, serverError } from '../http';
 import { str, email as emailField, oneOf } from '../validate';
 import { rateLimit, firstLimited, clientIp, MINUTE, HOUR } from '../rateLimit';
+import BRAND from '@/data/brand';
 
 // Emails are matched case-insensitively so "Ali@x.com" and "ali@x.com" are
 // the same account, including accounts created before emails were lowercased.
@@ -122,7 +123,7 @@ export const forgotPassword = async (request) => {
     try {
       await sendEmail({
         email: user.email,
-        subject: 'LetRank - Password Reset Code',
+        subject: `${BRAND.name}: your password reset code`,
         text: `Your password reset code is: ${otp}\n\nThis code is valid for 10 minutes. If you did not request this, please ignore this email.`,
       });
     } catch (err) {

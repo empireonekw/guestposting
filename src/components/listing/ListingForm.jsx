@@ -28,7 +28,7 @@ const EMPTY = {
   topCountries: [{ code: '', share: '' }],
   linkType: 'dofollow', linkValidity: 'permanent', linksPerPost: '1',
   googleNews: false, markedSponsored: false, acceptsSitewide: false, acceptsForeignLanguage: false,
-  allowed: { casino: false, cbd: false, crypto: false, pharmacy: false, sports: false },
+  allowed: Object.fromEntries(RESTRICTED_TOPICS.map((t) => [t.key, false])),
   sampleUrls: [''], contentRules: '',
   price: '', linkInsertionPrice: '', turnaroundDays: '3',
 };
@@ -51,7 +51,7 @@ const fromListing = (l) => ({
   linksPerPost: str(l.linksPerPost || 1),
   googleNews: !!l.googleNews, markedSponsored: !!l.markedSponsored,
   acceptsSitewide: !!l.acceptsSitewide, acceptsForeignLanguage: !!l.acceptsForeignLanguage,
-  allowed: { ...EMPTY.allowed, ...(l.allowed || {}) },
+  allowed: Object.fromEntries(RESTRICTED_TOPICS.map((t) => [t.key, !!l.allowed?.[t.key]])),
   sampleUrls: l.sampleUrls?.length ? l.sampleUrls : [''],
   contentRules: l.contentRules || '',
   price: str(l.price), linkInsertionPrice: str(l.linkInsertionPrice), turnaroundDays: str(l.turnaroundDays ?? 3),
@@ -388,6 +388,11 @@ const ListingForm = ({ initial, mode = 'create', onSubmit, submitLabel }) => {
                 <div className="flex justify-between gap-3"><dt className="text-ink-soft">Price</dt><dd className="font-medium">{form.price ? money(form.price) : '–'}</dd></div>
               </dl>
             </div>
+            <p className="text-[13px] text-ink-soft">
+              By {mode === 'edit' ? 'saving' : 'submitting'} you confirm you own or may publish on this website, and agree to the{' '}
+              <a href="/seller-terms" target="_blank" rel="noopener" className="font-medium text-brand-700 hover:underline">Seller &amp; Payout Terms</a>,
+              including keeping sold links live for the period you chose.
+            </p>
             {mode === 'edit' && <p className="text-[13px] text-ink-soft">Saving sends the listing back to our team for review. It stays hidden from buyers until it is approved again.</p>}
           </>
         )}

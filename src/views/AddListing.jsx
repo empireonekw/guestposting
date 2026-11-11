@@ -16,7 +16,7 @@ const CSV_COLUMNS = [
   ['top_countries', 'Up to 3, as code:share, e.g. us:62|gb:9|ca:6.'],
   ['link_type, link_validity, links_per_post', 'dofollow / nofollow; permanent, 24m, 12m or 6m; 1–5.'],
   ['google_news, sponsored, sitewide, foreign_language', 'yes or no.'],
-  ['casino, cbd, crypto, pharmacy, sports', 'yes if you accept the topic.'],
+  ['crypto, pharmacy', 'yes if you accept the topic. Gambling, betting and CBD sites can\u2019t be listed.'],
   ['link_insertion_price, turnaround_days', 'Optional.'],
   ['sample_urls, content_rules', 'Optional. Separate sample links with |.'],
 ];

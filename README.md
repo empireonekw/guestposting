@@ -1,4 +1,4 @@
-# LetRank Guest Post Marketplace
+# Guest Posting Guest Post Marketplace
 
 A plain Next.js (App Router) + MongoDB marketplace where sellers list websites and buyers order guest posts, with order chat.
 

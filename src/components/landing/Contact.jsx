@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Mail, MessageSquare, Send, ArrowUpRight, Loader2, CheckCircle2 } from 'lucide-react';
 import api from '@/lib/api'; 
+import BRAND from '@/data/brand';
 
 const Contact = () => {
   const [formData, setFormData] = useState({ name: '', email: '', message: '' });
@@ -45,7 +46,7 @@ const Contact = () => {
               </div>
               <div>
                 <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Email Us</p>
-                <p className="text-slate-200 font-semibold group-hover:text-white transition-colors">support@letrank.com</p>
+                <p className="text-slate-200 font-semibold group-hover:text-white transition-colors">{BRAND.supportEmail}</p>
               </div>
             </div>
           </div>

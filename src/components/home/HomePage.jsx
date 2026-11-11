@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import {
-  ArrowRight, Search, FileText, Rocket, BadgeCheck, Newspaper, Link2, Bitcoin, Dices, Leaf, Star, TrendingUp, Zap, Megaphone, MapPin,
+  ArrowRight, Search, FileText, Rocket, BadgeCheck, Newspaper, Link2, Bitcoin, Star, TrendingUp, Zap, Megaphone, MapPin,
 } from 'lucide-react';
 import HomeHero from './HomeHero';
 import CountryBrowser from './CountryBrowser';
@@ -19,8 +19,6 @@ const LISTS = [
   { slug: 'google-news', icon: Newspaper, title: 'Google News', text: 'News-approved publishers' },
   { slug: 'link-insertion', icon: Link2, title: 'Link insertions', text: 'Links in existing posts' },
   { slug: 'crypto', icon: Bitcoin, title: 'Crypto', text: 'Crypto and Web3 friendly' },
-  { slug: 'casino', icon: Dices, title: 'Casino', text: 'Gambling accepted' },
-  { slug: 'cbd', icon: Leaf, title: 'CBD', text: 'CBD and cannabis accepted' },
   { slug: 'fast-turnaround', icon: Zap, title: 'Fast publishing', text: 'Live within a day' },
 ];
 

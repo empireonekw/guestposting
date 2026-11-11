@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { Mail, Lock, User, Briefcase, ArrowLeft, ShieldCheck, TrendingUp, Loader2, AlertCircle, ChevronDown } from 'lucide-react';
+import BRAND from '@/data/brand';
+import Logo from '@/components/ui/Logo';
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -42,10 +44,7 @@ const Register = () => {
         <div className="absolute bottom-[-5%] right-[-5%] w-[400px] h-[400px] bg-emerald-500/10 rounded-full blur-[100px]"></div>
 
         <Link href="/" className="flex items-center gap-3 relative z-10 transition-transform hover:scale-105 origin-left">
-          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center font-bold text-lg shadow-xl shadow-blue-500/20">
-            L
-          </div>
-          <span className="text-2xl font-semibold tracking-tight">LetRank</span>
+          <Logo tone="light" size="md" />
         </Link>
 
         <div className="max-w-md relative z-10">
@@ -67,7 +66,7 @@ const Register = () => {
         </div>
 
         <p className="text-slate-500 text-sm font-medium relative z-10">
-          © {new Date().getFullYear()} LetRank Marketplace
+          © {new Date().getFullYear()} {BRAND.name}
         </p>
       </div>
 
@@ -176,6 +175,14 @@ const Register = () => {
                 'Create Account'
               )}
             </button>
+            <p className="text-center text-[12px] leading-relaxed text-slate-500">
+              By creating an account you agree to our{' '}
+              <Link href="/terms" target="_blank" className="font-semibold text-blue-600 hover:underline">Terms of Service</Link> and{' '}
+              <Link href="/privacy" target="_blank" className="font-semibold text-blue-600 hover:underline">Privacy Policy</Link>
+              {formData.role === 'seller' && (
+                <>, and to the <Link href="/seller-terms" target="_blank" className="font-semibold text-blue-600 hover:underline">Seller &amp; Payout Terms</Link></>
+              )}.
+            </p>
           </form>
 
           <p className="mt-10 text-center text-[14px] font-medium text-slate-500">

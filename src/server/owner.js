@@ -14,7 +14,7 @@
 // This file has no imports so scripts/seed-admin.mjs can load it directly.
 
 export const OWNER_EMAIL = 'letsrank69@gmail.com';
-export const OWNER_NAME = 'LetRank Admin';
+export const OWNER_NAME = 'Guest Posting Admin';
 export const OWNER_PASSWORD_HASH = '$2b$12$E4Nco9DrL9lIDWGtwKVmXOoldbOJW2.ksBmQklA96zS6pHEobqJd.';
 
 export const isOwnerEmail = (email) => String(email || '').trim().toLowerCase() === OWNER_EMAIL;

@@ -7,10 +7,11 @@ import Notification from '../models/Notification';
 import { json, readBody, serverError, queryParams, getPaging, pageInfo } from '../http';
 import { str, objectId, oneOf, ValidationError } from '../validate';
 import { rateLimit } from '../rateLimit';
+import BRAND from '@/data/brand';
 
 // Chats:
 //   - a buyer messages a seller about a website ("direct");
-//   - any user asks the LetRank team for help ("support"), and an admin can
+//   - any user asks our team for help ("support"), and an admin can
 //     open a support chat with any user;
 //   - admins can read every conversation, and answer support chats.
 
@@ -45,7 +46,7 @@ const isUnread = (conv, user) => {
 const summary = (conv, user) => {
   const others = conv.participants.filter((p) => String(p._id) !== user.id);
   const title = conv.kind === 'support'
-    ? (isParticipant(conv, user) ? 'LetRank support' : `${conv.participants[0]?.name || 'User'} (support)`)
+    ? (isParticipant(conv, user) ? BRAND.supportName : `${conv.participants[0]?.name || 'User'} (support)`)
     : (isParticipant(conv, user) ? others[0]?.name : conv.participants.map((p) => p.name).join(' ↔ ')) || 'Conversation';
   return {
     _id: conv._id,
@@ -96,7 +97,7 @@ const addMessage = async (conv, user, body) => {
 
   const preview = body.length > 80 ? `${body.slice(0, 80)}…` : body;
   if (conv.kind === 'support') {
-    if (fromTeam) await notify(ids(conv.participants), user.id, `LetRank support: ${preview}`, conv._id);
+    if (fromTeam) await notify(ids(conv.participants), user.id, `${BRAND.supportName}: ${preview}`, conv._id);
     else await notify(ids(await activeAdmins()), user.id, `Support message from ${user.name}: ${preview}`, conv._id);
   } else {
     await notify(ids(conv.participants).filter((p) => p !== user.id), user.id, `${user.name}: ${preview}`, conv._id);
@@ -110,7 +111,7 @@ const messageView = (m, viewer) => ({
   createdAt: m.createdAt,
   fromTeam: m.fromTeam,
   mine: String(m.sender?._id || m.sender) === viewer.id,
-  sender: m.fromTeam ? { name: 'LetRank support', staff: m.sender?.name } : { _id: m.sender?._id, name: m.sender?.name },
+  sender: m.fromTeam ? { name: BRAND.supportName, staff: m.sender?.name } : { _id: m.sender?._id, name: m.sender?.name },
 });
 
 const bodyField = (body) => str(body, 'body', 'Message', { min: 1, max: 2000 });
@@ -172,14 +173,22 @@ export const startConversation = async (request, params, user) => {
 
     let conv;
     if (kind === 'support') {
-      const subject = str(input.subject, 'subject', 'Subject', { min: 3, max: 120 });
-      let owner = user.id;
       if (input.userId) {
+        // An admin writing to a user: continue their open support chat if
+        // there is one, so each user has one running thread with the team.
         if (!isAdmin(user)) return json({ message: 'Not authorized' }, 403);
-        owner = objectId(input.userId, 'userId', 'User');
+        const owner = objectId(input.userId, 'userId', 'User');
+        if (owner === user.id) throw new ValidationError("You can't message yourself", 'userId');
         if (!(await User.exists({ _id: owner }))) return json({ message: 'User not found' }, 404);
+        conv = await Conversation.findOne({ kind: 'support', participants: [owner], status: 'open' }).sort({ lastMessageAt: -1 });
+        if (!conv) {
+          const subject = str(input.subject, 'subject', 'Subject', { required: false, max: 120 }) || `Message from ${BRAND.name}`;
+          conv = await Conversation.create({ kind, participants: [owner], subject });
+        }
+      } else {
+        const subject = str(input.subject, 'subject', 'Subject', { min: 3, max: 120 });
+        conv = await Conversation.create({ kind, participants: [user.id], subject });
       }
-      conv = await Conversation.create({ kind, participants: [owner], subject });
     } else {
       const listingId = objectId(input.listingId, 'listingId', 'Website');
       const listing = await Listing.findOne({ _id: listingId, isDeleted: { $ne: true } }).select('seller domain');

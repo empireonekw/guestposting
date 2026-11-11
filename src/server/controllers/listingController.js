@@ -4,19 +4,19 @@ import csv from 'csv-parser';
 import Listing from '../models/Listing';
 import Order from '../models/Order';
 import User, { sellerStatusOf } from '../models/User';
-import Notification from '../models/Notification';
 import logActivity from '../logger';
-import { sendEmailInBackground } from '../sendEmail';
-import { escapeHtml } from '../escape';
 import { json, readBody, serverError, queryParams, getPaging, pageInfo, escapeRegex } from '../http';
-import { str, url as urlField, num, oneOf, ValidationError } from '../validate';
+import { str, url as urlField, num, oneOf, objectId, ValidationError } from '../validate';
+import { reviewListings, REVIEW_STATUSES, NEEDS_NOTE, MAX_BULK } from '../listingReview';
 import { getTaxonomy, nicheIndex } from '../taxonomy';
 import { searchListings, buildListingQuery, parseSort, PUBLIC_FIELDS } from '../listingSearch';
 import { LANGUAGE_NAMES } from '@/data/languages';
 import { METRIC_KEYS, isChecked, applyCheckedMetrics } from '../metrics';
 import {
-  LINK_TYPES, LINK_VALIDITY, RESTRICTED_TOPICS, MAX_NICHES, MAX_LINKS_PER_POST, MAX_SAMPLE_URLS,
+  LINK_TYPES, LINK_VALIDITY, RESTRICTED_TOPICS, BLOCKED_TOPICS, BLOCKED_NICHES, BLOCKED_REASON,
+  MAX_NICHES, MAX_LINKS_PER_POST, MAX_SAMPLE_URLS,
 } from '@/data/listingOptions';
+import { slugify } from '@/data/niches';
 
 // Deleted listings are kept for order history but hidden everywhere else.
 const notDeleted = { isDeleted: { $ne: true } };
@@ -56,6 +56,9 @@ const readNiches = (value, niches, { required }) => {
   const slugs = [];
   items.forEach((item) => {
     const key = item.toLowerCase();
+    if (BLOCKED_NICHES.includes(key) || BLOCKED_NICHES.includes(slugify(item))) {
+      throw new ValidationError(`${item}: ${BLOCKED_REASON}`, 'niches');
+    }
     const slug = niches.has(key) ? key : byName.get(key);
     if (!slug) throw new ValidationError(`Unknown niche: ${item}`, 'niches');
     if (!slugs.includes(slug)) slugs.push(slug);
@@ -120,6 +123,8 @@ const readListingFields = async (body, { partial = false } = {}) => {
     const v = flag(allowedIn[key], key, label);
     if (v !== undefined) allowed[key] = v;
   });
+  // Blocked topics are switched off on every save, clearing older ticks.
+  BLOCKED_TOPICS.forEach((key) => { allowed[key] = false; });
 
   const address = partial ? undefined : urlField(body.url, 'url', 'Website URL');
   if (address && isIP(new URL(address).hostname.replace(/^\[|\]$/g, ''))) {
@@ -191,11 +196,8 @@ const csvRowToBody = (row) => ({
   markedSponsored: row.sponsored || row.marked_sponsored,
   acceptsSitewide: row.sitewide,
   acceptsForeignLanguage: row.foreign_language,
-  casino: row.casino,
-  cbd: row.cbd,
   crypto: row.crypto,
   pharmacy: row.pharmacy,
-  sports: row.sports,
   turnaroundDays: row.turnaround_days,
   sampleUrls: row.sample_urls,
   contentRules: row.content_rules,
@@ -334,32 +336,25 @@ export const exportListings = async (request) => {
   }
 };
 
+// PUT /api/listings/:id/approve
 export const approveListing = async (request, params, user) => {
   try {
     const listing = await findLiveListing(params.id);
     if (!listing) return json({ message: 'Listing not found' }, 404);
-    const owner = await User.findById(listing.seller).select('role sellerStatus');
-    if (['pending', 'blocked'].includes(sellerStatusOf(owner))) {
-      return json({ message: 'Approve this seller first (Users → Sellers waiting).' }, 400);
-    }
-    listing.status = 'approved';
-    listing.rejectionReason = undefined;
-    const updatedListing = await listing.save();
-    await logActivity(user.id, 'LISTING_APPROVED', listing._id, `Approved site: ${listing.url}`);
-    return json(updatedListing);
+    const { done, skipped } = await reviewListings([listing], 'approved', undefined, user);
+    if (skipped.length) return json({ message: skipped[0].message }, 400);
+    return json(done[0]);
   } catch (error) {
     return serverError(error);
   }
 };
-
-const ADMIN_STATUSES = ['pending', 'approved', 'rejected'];
 
 // GET /api/listings/admin?status=pending&search=&page=1
 export const getAdminListings = async (request) => {
   try {
     const q = queryParams(request);
     const paging = getPaging(request, { defaultLimit: 25, maxLimit: 100 });
-    const status = oneOf(q.status, 'status', 'Status', ADMIN_STATUSES, { required: false });
+    const status = oneOf(q.status, 'status', 'Status', REVIEW_STATUSES, { required: false });
     const search = str(q.search, 'search', 'Search', { required: false, max: 100 });
 
     const base = { ...notDeleted };
@@ -368,7 +363,7 @@ export const getAdminListings = async (request) => {
 
     const [listings, total, countRows] = await Promise.all([
       Listing.find(query)
-        .populate('seller', 'name email')
+        .populate('seller', 'name email sellerStatus role')
         .sort({ createdAt: -1 })
         .skip(paging.skip)
         .limit(paging.limit),
@@ -376,7 +371,7 @@ export const getAdminListings = async (request) => {
       Listing.aggregate([{ $match: base }, { $group: { _id: '$status', n: { $sum: 1 } } }]),
     ]);
 
-    const counts = { pending: 0, approved: 0, rejected: 0 };
+    const counts = Object.fromEntries(REVIEW_STATUSES.map((s) => [s, 0]));
     countRows.forEach((row) => { counts[row._id] = row.n; });
 
     return json({ listings, counts, ...pageInfo(total, paging) });
@@ -385,56 +380,58 @@ export const getAdminListings = async (request) => {
   }
 };
 
+const readReview = (body) => {
+  const status = oneOf(body.status, 'status', 'Status', REVIEW_STATUSES);
+  const label = status === 'changes_requested' ? 'What to change' : 'Reason';
+  const note = str(body.reason, 'reason', label, { required: NEEDS_NOTE.includes(status), min: 5, max: 500 });
+  return { status, note: NEEDS_NOTE.includes(status) ? note : undefined };
+};
+
 // PUT /api/listings/:id/status  { status, reason }
-// Rejecting needs a reason; the seller is notified in the app and by email.
+// Rejecting or asking for changes needs a reason; the seller is notified in
+// the app and by email.
 export const updateListingStatus = async (request, params, user) => {
   try {
-    const body = await readBody(request);
-    const status = oneOf(body.status, 'status', 'Status', ADMIN_STATUSES);
-    const reason = str(body.reason, 'reason', 'Reason', { required: status === 'rejected', min: 5, max: 500 });
-
+    const { status, note } = readReview(await readBody(request));
     const listing = await findLiveListing(params.id);
     if (!listing) return json({ message: 'Listing not found' }, 404);
-    if (status === 'approved') {
-      const owner = await User.findById(listing.seller).select('role sellerStatus');
-      const state = sellerStatusOf(owner);
-      if (state === 'pending') return json({ message: 'Approve this seller first (Users → Sellers waiting).' }, 400);
-      if (state === 'blocked') return json({ message: 'This seller is blocked, so their websites cannot go live.' }, 400);
+    const { done, skipped } = await reviewListings([listing], status, note, user);
+    if (skipped.length) return json({ message: skipped[0].message }, 400);
+    return json(done[0]);
+  } catch (error) {
+    return serverError(error);
+  }
+};
+
+const BULK_TEXT = {
+  pending: 'moved back to pending',
+  approved: 'approved',
+  rejected: 'rejected',
+  changes_requested: 'sent back for changes',
+};
+
+// POST /api/listings/admin/bulk  { ids: [...], status, reason }
+// The same review for up to 100 listings at once.
+export const bulkReviewListings = async (request, params, user) => {
+  try {
+    const body = await readBody(request);
+    const { status, note } = readReview(body);
+    if (!Array.isArray(body.ids) || body.ids.length === 0) {
+      throw new ValidationError('Select at least one listing', 'ids');
     }
+    const ids = [...new Set(body.ids.map(String))];
+    if (ids.length > MAX_BULK) throw new ValidationError(`Select at most ${MAX_BULK} listings at a time`, 'ids');
+    ids.forEach((id) => objectId(id, 'ids', 'Listing'));
 
-    listing.status = status;
-    listing.rejectionReason = status === 'rejected' ? reason : undefined;
-    const updatedListing = await listing.save();
+    const listings = await Listing.find({ _id: { $in: ids }, ...notDeleted });
+    if (!listings.length) return json({ message: 'None of the selected listings were found.' }, 404);
+    const { done, skipped } = await reviewListings(listings, status, note, user);
 
-    await logActivity(
-      user.id,
-      status === 'rejected' ? 'LISTING_REJECTED' : `LISTING_${status.toUpperCase()}`,
-      listing._id,
-      status === 'rejected' ? `Rejected ${listing.url}: ${reason}` : `Set ${listing.url} to ${status}`,
-    );
-
-    if (status === 'rejected') {
-      await Notification.create({
-        recipient: listing.seller,
-        sender: user.id,
-        type: 'listing_update',
-        message: `Your listing ${listing.url} was not approved: ${reason}`,
-        link: '/my-listings',
-      });
-      const seller = await User.findById(listing.seller).select('email name');
-      if (seller?.email) {
-        sendEmailInBackground({
-          email: seller.email,
-          subject: `Listing update: ${listing.url}`,
-          html: `<p>Hi ${escapeHtml(seller.name)},</p>
-            <p>Your listing <strong>${escapeHtml(listing.url)}</strong> was not approved.</p>
-            <p><strong>Reason:</strong> ${escapeHtml(reason)}</p>
-            <p>You can edit the listing and it will be reviewed again.</p>`,
-        }, 'Rejection email');
-      }
-    }
-
-    return json(updatedListing);
+    const missing = ids.length - listings.length;
+    const parts = [`${done.length} listing${done.length === 1 ? '' : 's'} ${BULK_TEXT[status]}.`];
+    if (skipped.length) parts.push(`${skipped.length} skipped because the seller isn't approved.`);
+    if (missing) parts.push(`${missing} no longer exist${missing === 1 ? 's' : ''}.`);
+    return json({ message: parts.join(' '), updated: done.length, skipped }, done.length ? 200 : 400);
   } catch (error) {
     return serverError(error);
   }
@@ -513,11 +510,12 @@ export const getMyListings = async (request, params, user) => {
     const totalListings = listings.length;
     const approvedListings = listings.filter((l) => l.status === 'approved').length;
     const pendingListings = listings.filter((l) => l.status === 'pending').length;
+    const changesRequested = listings.filter((l) => l.status === 'changes_requested').length;
 
     const me = await User.findById(user.id).select('role sellerStatus sellerStatusReason');
     return json({
       listings,
-      stats: { totalListings, approvedListings, pendingListings },
+      stats: { totalListings, approvedListings, pendingListings, changesRequested },
       sellerStatus: sellerStatusOf(me),
       sellerStatusReason: me?.sellerStatusReason,
     });
@@ -554,6 +552,7 @@ export const updateListing = async (request, params, user) => {
       // ownership badge stays: the domain hasn't changed.
       listing.status = 'pending';
       listing.rejectionReason = undefined;
+      listing.reviewNote = undefined;
     }
 
     const updatedListing = await listing.save();

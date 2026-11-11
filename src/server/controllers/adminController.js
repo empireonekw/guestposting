@@ -9,6 +9,7 @@ import logActivity from '../logger';
 import { json, readBody, serverError, queryParams, getPaging, pageInfo, escapeRegex } from '../http';
 import { str, oneOf, bool, objectId } from '../validate';
 import { isOwnerEmail } from '../owner';
+import BRAND from '@/data/brand';
 
 export const getPlatformStats = async () => {
   try {
@@ -63,8 +64,14 @@ export const getAllUsers = async (request) => {
       User.find(query).select('-password -resetPasswordOtp').sort({ createdAt: -1 }).skip(paging.skip).limit(paging.limit),
       User.countDocuments(query),
     ]);
+    // How many websites each seller on this page has added (for approving).
+    const sellerIds = users.filter((u) => u.role === 'seller').map((u) => u._id);
+    const siteRows = sellerIds.length
+      ? await Listing.aggregate([{ $match: { seller: { $in: sellerIds }, isDeleted: { $ne: true } } }, { $group: { _id: '$seller', n: { $sum: 1 } } }])
+      : [];
+    const sites = Object.fromEntries(siteRows.map((r) => [String(r._id), r.n]));
     // isOwner lets the admin page lock the owner's row.
-    const rows = users.map((u) => ({ ...u.toObject(), isOwner: isOwnerEmail(u.email) }));
+    const rows = users.map((u) => ({ ...u.toObject(), isOwner: isOwnerEmail(u.email), siteCount: sites[String(u._id)] || 0 }));
     return json({ users: rows, ...pageInfo(total, paging) });
   } catch (error) {
     return serverError(error);
@@ -107,12 +114,17 @@ export const updateUserByAdmin = async (request, params, authUser) => {
     let sellerMessage = null;
     if (sellerStatus && user.role === 'seller' && sellerStatus !== (user.sellerStatus || 'approved')) {
       changes.push(`seller ${user.sellerStatus || 'approved'} -> ${sellerStatus}`);
+      const wasWaiting = user.sellerStatus === 'pending';
       user.sellerStatus = sellerStatus;
       user.sellerStatusReason = sellerStatus === 'blocked' ? reason : undefined;
+      // "reason." with exactly one full stop.
+      const why = reason ? `: ${reason.replace(/[.!?\s]+$/, '')}.` : '.';
       sellerMessage = sellerStatus === 'approved'
         ? 'Your seller account is approved. Your websites can now go live after review.'
         : sellerStatus === 'blocked'
-          ? `Your seller account was blocked${reason ? `: ${reason}` : '.'} Your websites are hidden from buyers.`
+          ? (wasWaiting
+            ? `Your seller application was not approved${why} You can still buy guest posts, and you can contact support in Messages.`
+            : `Your seller account was blocked${why} Your websites are hidden from buyers.`)
           : null;
     } else if (sellerStatus && user.role !== 'seller') {
       return json({ message: 'Only seller accounts have a seller status.' }, 400);
@@ -126,7 +138,7 @@ export const updateUserByAdmin = async (request, params, authUser) => {
       await Notification.create({ recipient: user._id, sender: authUser.id, type: 'seller_status', message: sellerMessage, link: '/my-listings' });
       sendEmailInBackground({
         email: user.email,
-        subject: 'Your LetRank seller account',
+        subject: `Your ${BRAND.name} seller account`,
         html: `<p>Hi ${escapeHtml(user.name)},</p><p>${escapeHtml(sellerMessage)}</p>`,
       }, 'Seller status email');
     }

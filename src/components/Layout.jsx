@@ -7,8 +7,10 @@ import api from '@/lib/api';
 import {
   LayoutGrid, History, Layers, PlusSquare, Globe, ShoppingBag, Users, Settings, LogOut, Bell,
   Info, CheckCircle2, X, ChevronDown, PanelLeftClose, PanelLeftOpen, Menu, ArrowUpRight, Plus, ClipboardCheck,
-  MessageSquare, Workflow,
+  MessageSquare, Code2, Tags,
 } from 'lucide-react';
+import BRAND from '@/data/brand';
+import Logo from '@/components/ui/Logo';
 
 // The sidebar for each role, grouped into sections. An item with
 // `children` opens a sub-list.
@@ -17,7 +19,6 @@ const menuFor = (role) => {
     return [
       { title: 'General', items: [
         { name: 'Overview', icon: LayoutGrid, path: '/admin' },
-        { name: 'Live flow', icon: Workflow, path: '/admin/flow' },
         { name: 'Messages', icon: MessageSquare, path: '/messages', badge: 'messages' },
         { name: 'Metrics report', icon: ClipboardCheck, path: '/admin/metrics' },
       ] },
@@ -27,14 +28,18 @@ const menuFor = (role) => {
           { name: 'Add new site', path: '/add-listing' },
           { name: 'Our own sites', path: '/my-listings' },
         ] },
+        { name: 'Niches & countries', icon: Tags, path: '/admin/taxonomy' },
       ] },
       { title: 'Marketplace', items: [
         { name: 'Orders', icon: ShoppingBag, path: '/orders' },
         { name: 'Find sites', icon: Globe, path: '/sites' },
       ] },
       { title: 'People', items: [
-        { name: 'Users', icon: Users, path: '/admin/users' },
+        { name: 'Users', icon: Users, path: '/admin/users', badge: 'sellers' },
         { name: 'Activity log', icon: History, path: '/admin/logs' },
+      ] },
+      { title: 'System', items: [
+        { name: 'Code flow', icon: Code2, path: '/admin/system' },
       ] },
       { title: 'Account', items: [
         { name: 'Settings', icon: Settings, path: '/profile' },
@@ -87,6 +92,7 @@ const Layout = ({ children }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState({});
   const [chatCount, setChatCount] = useState(0);
+  const [waitingSellers, setWaitingSellers] = useState(0);
   const userInfo = JSON.parse(localStorage.getItem('userInfo'));
   const userId = userInfo?._id;
   const role = userInfo?.role;
@@ -139,6 +145,10 @@ const Layout = ({ children }) => {
       try {
         const { data } = await api.get('/conversations/unread');
         if (!stopped) setChatCount((data.unread || 0) + (data.supportWaiting || 0));
+        if (role === 'admin') {
+          const { data: w } = await api.get('/admin/users?seller=pending&limit=1');
+          if (!stopped) setWaitingSellers(w.total || 0);
+        }
       } catch {
         // Try again later.
       }
@@ -146,7 +156,7 @@ const Layout = ({ children }) => {
     load();
     const t = setInterval(load, 15000);
     return () => { stopped = true; clearInterval(t); };
-  }, [userId, pathname]);
+  }, [userId, pathname, role]);
 
   const toggleCollapsed = () => {
     setCollapsed((c) => {
@@ -197,14 +207,8 @@ const Layout = ({ children }) => {
   const sidebar = (
     <div className="flex h-full flex-col">
       <div className={`flex items-center gap-2 px-4 pt-4 ${wide ? '' : 'flex-col'}`}>
-        <Link href="/" className={`flex items-center gap-2.5 rounded-2xl bg-white px-3.5 py-3 shadow-[var(--shadow-card)] ${wide ? 'flex-1' : ''}`}>
-          <span className="bg-brand-gradient flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white">L</span>
-          {wide && (
-            <span className="flex min-w-0 items-baseline gap-2">
-              <span className="text-[17px] font-bold tracking-tight text-ink">LetRank</span>
-              <span className="truncate border-l border-line pl-2 text-[12px] capitalize text-ink-faint">{role}</span>
-            </span>
-          )}
+        <Link href="/" aria-label={`${BRAND.name} home`} className={`flex min-w-0 items-center rounded-2xl bg-white px-3 py-3 shadow-[var(--shadow-card)] ${wide ? 'flex-1' : ''}`}>
+          <Logo size="sm" compact={!wide} />
         </Link>
         <button
           type="button"
@@ -267,6 +271,11 @@ const Layout = ({ children }) => {
                       {item.badge === 'messages' && chatCount > 0 && (
                         <span className={`rounded-full bg-brand-600 px-1.5 text-[11px] font-bold leading-5 text-white ${wide ? '' : 'absolute right-1 top-1'}`} aria-label={`${chatCount} unread`}>
                           {chatCount > 99 ? '99+' : chatCount}
+                        </span>
+                      )}
+                      {item.badge === 'sellers' && waitingSellers > 0 && (
+                        <span className={`rounded-full bg-amber-500 px-1.5 text-[11px] font-bold leading-5 text-white ${wide ? '' : 'absolute right-1 top-1'}`} aria-label={`${waitingSellers} sellers waiting for approval`} title="Sellers waiting for approval">
+                          {waitingSellers}
                         </span>
                       )}
                     </Link>

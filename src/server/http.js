@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { NextResponse } from 'next/server';
 import connectDB from './db';
 import { ValidationError } from './validate';
+import { recordRequest, groupOf } from './telemetry';
 
 export const json = (data, status = 200) => NextResponse.json(data, { status });
 
@@ -42,19 +43,28 @@ export const serverError = (error) => {
   }
   if (error?.code === 11000) return json({ message: 'This record already exists' }, 409);
   console.error(error);
-  return json({ message: 'Something went wrong. Please try again.' }, 500);
+  const res = json({ message: 'Something went wrong. Please try again.' }, 500);
+  // The real reason, for the admin Code flow page only (never sent to users).
+  res.lrError = error?.message || String(error);
+  return res;
 };
 
 // Wraps a route handler: connects to Mongo first and turns anything that
 // escapes the handler into a JSON error response (Express's error fallback).
 export const route = (handler) => async (request, context) => {
+  const started = performance.now();
+  let res;
   try {
     await connectDB();
     const params = context?.params ? await context.params : {};
-    return await handler(request, params);
+    res = await handler(request, params);
   } catch (error) {
-    return serverError(error);
+    res = serverError(error);
   }
+  // Timing and errors for the admin Code flow page.
+  const { pathname } = new URL(request.url);
+  recordRequest(groupOf(pathname), { ms: performance.now() - started, status: res?.status || 500, path: pathname, message: res?.lrError });
+  return res;
 };
 
 export const queryParams = (request) => Object.fromEntries(new URL(request.url).searchParams);

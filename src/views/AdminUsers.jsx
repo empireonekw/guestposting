@@ -3,7 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import { Mail, ShieldCheck, Ban, Shield, User as UserIcon, Store, Loader2, CheckCircle2, AlertCircle, X, Search } from 'lucide-react';
+import Link from 'next/link';
 import Pagination from '@/components/Pagination';
+import Dialog from '@/components/ui/Dialog';
+import Button from '@/components/ui/Button';
+import { Textarea } from '@/components/ui/Field';
 
 const AdminUsers = () => {
   const [users, setUsers] = useState([]);
@@ -31,6 +35,18 @@ const AdminUsers = () => {
     setTimeout(() => setAlert({ show: false, type: '', message: '' }), 5000);
   };
 
+  // Sellers who signed up and are waiting for approval.
+  const [waiting, setWaiting] = useState([]);
+  const fetchWaiting = async () => {
+    try {
+      const { data } = await api.get('/admin/users?seller=pending&limit=50');
+      setWaiting(data.users);
+    } catch {
+      // The main list still loads.
+    }
+  };
+  useEffect(() => { fetchWaiting(); }, []);
+
   const fetchUsers = async () => {
     try {
       const params = new URLSearchParams({ page: String(page) });
@@ -55,19 +71,16 @@ const AdminUsers = () => {
   // A new search or role filter starts again from page 1.
   useEffect(() => { setPage(1); }, [search, roleFilter, sellerFilter]);
 
-  // Approve, block or unblock a seller. Blocking asks for a reason, which
-  // the seller sees.
-  const setSellerStatus = async (user, sellerStatus) => {
-    let reason;
-    if (sellerStatus === 'blocked') {
-      reason = window.prompt(`Why is ${user.name} blocked from selling? The seller will see this.`, '');
-      if (reason === null) return;
-    }
+  // Blocking a seller asks for a reason (the seller sees it) in a dialog.
+  const [blocking, setBlocking] = useState({ user: null, reason: '' });
+
+  // Approve, block or unblock a seller.
+  const setSellerStatus = async (user, sellerStatus, reason) => {
     setProcessingAction({ id: user._id, type: 'seller' });
     try {
       await api.put(`/admin/users/${user._id}`, { sellerStatus, reason });
-      showNotification('success', sellerStatus === 'approved' ? `${user.name} can now sell.` : sellerStatus === 'blocked' ? `${user.name} is blocked from selling.` : 'Seller status updated.');
-      await fetchUsers();
+      showNotification('success', sellerStatus === 'approved' ? `${user.name} is approved and can now sell.` : sellerStatus === 'blocked' ? `${user.name} is blocked from selling.` : 'Seller status updated.');
+      await Promise.all([fetchUsers(), fetchWaiting()]);
     } catch (err) {
       showNotification('error', err.response?.data?.message || 'Could not update the seller.');
     } finally {
@@ -93,18 +106,6 @@ const AdminUsers = () => {
       showNotification('error', err.response?.data?.message || "Failed to update account status."); 
     } finally {
       setProcessingAction({ id: null, type: null });
-    }
-  };
-
-  // Opens a support chat with this user and goes to it.
-  const messageUser = async (user) => {
-    const text = window.prompt(`Message to ${user.name} (from LetRank support):`, '');
-    if (!text || !text.trim()) return;
-    try {
-      const { data } = await api.post('/conversations', { kind: 'support', userId: user._id, subject: 'Message from LetRank', body: text.trim() });
-      window.location.href = `/messages?c=${data._id}`;
-    } catch (err) {
-      showNotification('error', err.response?.data?.message || 'Could not send the message.');
     }
   };
 
@@ -154,6 +155,49 @@ const AdminUsers = () => {
       </div>
 
       {/* Search and role filter */}
+      {/* Sellers waiting for approval */}
+      {waiting.length > 0 && (
+        <section aria-labelledby="waiting-h" className="mb-6 overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-5 py-3.5">
+            <h2 id="waiting-h" className="flex items-center gap-2 text-[15px] font-semibold text-amber-900">
+              <Store size={16} /> Sellers waiting for approval
+              <span className="rounded-full bg-amber-600 px-2 text-[12px] font-bold leading-5 text-white">{waiting.length}</span>
+            </h2>
+            <p className="hidden text-[12px] text-amber-800 sm:block">Their websites stay hidden until you approve them.</p>
+          </div>
+          <ul className="divide-y divide-slate-100">
+            {waiting.map((w) => {
+              const busy = processingAction.id === w._id && processingAction.type === 'seller';
+              const days = Math.floor((Date.now() - new Date(w.createdAt).getTime()) / 86400000);
+              return (
+                <li key={w._id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center">
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-[14px] font-bold text-amber-800">{w.name.charAt(0).toUpperCase()}</span>
+                    <div className="min-w-0">
+                      <p className="truncate text-[14px] font-semibold text-slate-900">{w.name}</p>
+                      <p className="truncate text-[12px] text-slate-500">
+                        {w.email} · signed up {days === 0 ? 'today' : `${days} day${days === 1 ? '' : 's'} ago`} · {w.siteCount} website{w.siteCount === 1 ? '' : 's'} added
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Link href={`/messages?to=${w._id}&name=${encodeURIComponent(w.name)}&role=seller`} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-[13px] font-medium text-slate-700 hover:bg-slate-50">
+                      <Mail size={14} /> Message
+                    </Link>
+                    <button type="button" disabled={busy} onClick={() => setBlocking({ user: w, reason: '', decline: true })} className="rounded-lg border border-red-200 px-3 py-2 text-[13px] font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">
+                      Decline
+                    </button>
+                    <button type="button" disabled={busy} onClick={() => setSellerStatus(w, 'approved')} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-[13px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
+                      {busy ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Approve
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <label className="relative flex-1">
           <span className="sr-only">Search users by name or email</span>
@@ -306,7 +350,7 @@ const AdminUsers = () => {
                                 </button>
                               )}
                               {st !== 'blocked' && (
-                                <button type="button" disabled={busy} onClick={() => setSellerStatus(u, 'blocked')} className="rounded-md border border-red-200 px-2 py-0.5 text-[11px] font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">
+                                <button type="button" disabled={busy} onClick={() => setBlocking({ user: u, reason: '' })} className="rounded-md border border-red-200 px-2 py-0.5 text-[11px] font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">
                                   Block selling
                                 </button>
                               )}
@@ -348,9 +392,14 @@ const AdminUsers = () => {
                             </div>
                           )}
 
-                          <button type="button" onClick={() => messageUser(u)} className="mr-2 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-[12px] font-medium text-slate-700 hover:bg-slate-50">
-                            <Mail size={13} /> Message
-                          </button>
+                          {u.role !== 'admin' && (
+                            <Link
+                              href={`/messages?to=${u._id}&name=${encodeURIComponent(u.name)}&role=${u.role}`}
+                              className="mr-2 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-[12px] font-medium text-slate-700 hover:bg-slate-50"
+                            >
+                              <Mail size={13} /> Message
+                            </Link>
+                          )}
                           {/* MAIN ACTION BUTTON (the owner can't be suspended) */}
                           {u.isOwner ? (
                             <span className="text-[12px] font-medium text-slate-400">Protected</span>
@@ -386,6 +435,37 @@ const AdminUsers = () => {
       {!loading && (
         <Pagination page={paging.page} pages={paging.pages} total={paging.total} limit={paging.limit} onChange={setPage} label="users" />
       )}
+      <Dialog
+        open={!!blocking.user}
+        onClose={() => setBlocking({ user: null, reason: '' })}
+        title={blocking.user ? (blocking.decline ? `Decline ${blocking.user.name} as a seller` : `Block ${blocking.user.name} from selling`) : 'Block seller'}
+        footer={(
+          <>
+            <Button variant="secondary" onClick={() => setBlocking({ user: null, reason: '' })}>Cancel</Button>
+            <Button
+              variant="danger"
+              disabled={blocking.reason.trim().length < 5}
+              onClick={() => { const { user, reason } = blocking; setBlocking({ user: null, reason: '' }); setSellerStatus(user, 'blocked', reason.trim()); }}
+            >
+              {blocking.decline ? 'Decline seller' : 'Block selling'}
+            </Button>
+          </>
+        )}
+      >
+        <div className="space-y-3 text-[14px] text-slate-600">
+          <p>{blocking.decline ? "They won't be able to sell or add websites. They can still buy and chat with support, and you can approve them later from the Users list." : "Their websites are hidden from buyers and they can't add or edit sites. They can still buy and chat with support. You can unblock them at any time."}</p>
+          <label className="block">
+            <span className="mb-1.5 block text-[13px] font-medium text-slate-800">Reason (the seller sees this by email and in the app)</span>
+            <Textarea
+              autoFocus
+              value={blocking.reason}
+              maxLength={500}
+              onChange={(e) => setBlocking((b) => ({ ...b, reason: e.target.value }))}
+              placeholder="e.g. Traffic numbers did not match our check"
+            />
+          </label>
+        </div>
+      </Dialog>
     </div>
   );
 };

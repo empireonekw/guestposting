@@ -118,7 +118,9 @@ const listingSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["pending", "approved", "rejected"],
+      // changes_requested: an admin asked the seller to fix something; the
+      // seller's next edit sends it back to "pending".
+      enum: ["pending", "approved", "rejected", "changes_requested"],
       default: "pending",
     },
     // true once the seller proved they own the domain (DNS record or meta tag).
@@ -132,6 +134,8 @@ const listingSchema = new mongoose.Schema(
     deletedAt: { type: Date },
     // Shown to the seller when an admin rejects the listing.
     rejectionReason: { type: String, maxlength: 500 },
+    // Shown to the seller when an admin asks for changes.
+    reviewNote: { type: String, maxlength: 500 },
   },
   { timestamps: true },
 );
@@ -169,4 +173,7 @@ listingSchema.index({ 'flags.type': 1 });
 // The featured-expiry job.
 listingSchema.index({ isFeatured: 1, featuredUntil: 1 });
 
+// In development a hot reload would otherwise keep the old model, which
+// silently drops fields added since; rebuild it so new fields are saved.
+if (process.env.NODE_ENV !== 'production' && mongoose.models.Listing) mongoose.deleteModel('Listing');
 export default mongoose.models.Listing || mongoose.model('Listing', listingSchema);

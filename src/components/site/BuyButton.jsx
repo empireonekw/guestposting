@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { ShoppingCart } from 'lucide-react';
 import api from '@/lib/api';
 import { compact, money } from '@/lib/format';
@@ -61,6 +62,11 @@ const BuyButton = ({ listing, size = 'sm', className = '', label = 'Buy' }) => {
           </p>
           <p className="rounded-lg bg-canvas px-3 py-2 text-[13px] text-ink-soft">
             After you place the order you send the publisher your article or brief, target URL and anchor text.
+          </p>
+          <p className="text-[12px] text-ink-faint">
+            Your payment is held until the post is live and approved. By placing the order you agree to our{' '}
+            <Link href="/terms" target="_blank" className="font-medium text-brand-700 hover:underline">Terms</Link> and{' '}
+            <Link href="/refund-policy" target="_blank" className="font-medium text-brand-700 hover:underline">Refund Policy</Link>.
           </p>
           {state.error && <p className="rounded-lg bg-red-50 px-3 py-2 text-[13px] text-red-800">{state.error}</p>}
         </div>

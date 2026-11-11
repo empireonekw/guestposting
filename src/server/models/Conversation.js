@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 
 // A chat thread.
 //   direct:  two users (usually a buyer and a seller, about one website)
-//   support: one user and the LetRank team (every admin can answer)
+//   support: one user and our team (every admin can answer)
 // Admins can read every conversation. Order chats keep their own Message
 // model (one thread per order).
 const readSchema = new mongoose.Schema(
@@ -24,7 +24,7 @@ const conversationSchema = new mongoose.Schema(
       fromTeam: { type: Boolean, default: false },
     },
     // When each participant last opened the thread; `teamReadAt` is the same
-    // for the LetRank team as a whole.
+    // for our team as a whole.
     reads: { type: [readSchema], default: [] },
     teamReadAt: Date,
   },
@@ -34,4 +34,7 @@ const conversationSchema = new mongoose.Schema(
 conversationSchema.index({ participants: 1, lastMessageAt: -1 });
 conversationSchema.index({ kind: 1, status: 1, lastMessageAt: -1 });
 
+// In development a hot reload would otherwise keep the old model, which
+// silently drops fields added since; rebuild it so new fields are saved.
+if (process.env.NODE_ENV !== 'production' && mongoose.models.Conversation) mongoose.deleteModel('Conversation');
 export default mongoose.models.Conversation || mongoose.model('Conversation', conversationSchema);

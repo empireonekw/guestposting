@@ -5,12 +5,15 @@ import http from 'node:http';
 import https from 'node:https';
 
 // Proves a seller controls a domain, in one of two ways:
-//   DNS:  a TXT record on the domain:  letrank-verification=<token>
+//   DNS:  a TXT record on the domain:  guestposting-verification=<token>
 //   Meta: a tag in the home page <head>:
-//         <meta name="letrank-verification" content="<token>">
+//         <meta name="guestposting-verification" content="<token>">
+// Records made with the old name (letrank-verification) still count.
 
-export const TXT_PREFIX = 'letrank-verification=';
-export const META_NAME = 'letrank-verification';
+export const TXT_PREFIX = 'guestposting-verification=';
+export const META_NAME = 'guestposting-verification';
+const OLD_TXT_PREFIX = 'letrank-verification=';
+const OLD_META_NAME = 'letrank-verification';
 
 export const newToken = () => crypto.randomBytes(16).toString('hex');
 
@@ -32,7 +35,8 @@ export const checkDns = async (domain, token) => {
     return { ok: false, error: `Could not look up DNS for ${domain}.` };
   }
   const wanted = `${TXT_PREFIX}${token}`;
-  const found = records.some((chunks) => chunks.join('').trim() === wanted);
+  const accepted = [wanted, `${OLD_TXT_PREFIX}${token}`];
+  const found = records.some((chunks) => accepted.includes(chunks.join('').trim()));
   return found
     ? { ok: true }
     : { ok: false, error: `The TXT record "${wanted}" was not found on ${domain}. DNS changes can take up to an hour.` };
@@ -85,7 +89,7 @@ const getPage = (url) =>
     const lib = url.protocol === 'http:' ? http : https;
     const req = lib.get(
       url,
-      { lookup: safeLookup, timeout: TIMEOUT_MS, headers: { 'User-Agent': 'LetRankVerifier/1.0 (+site ownership check)', Accept: 'text/html' } },
+      { lookup: safeLookup, timeout: TIMEOUT_MS, headers: { 'User-Agent': 'GuestPostingVerifier/1.0 (+site ownership check)', Accept: 'text/html' } },
       (res) => {
         if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
           res.resume();
@@ -123,7 +127,7 @@ const findMetaToken = (html) => {
   const tags = html.match(/<meta\b[^>]*>/gi) || [];
   for (const tag of tags) {
     const name = tag.match(/\bname\s*=\s*["']?([^"'\s>]+)/i)?.[1];
-    if (name && name.toLowerCase() === META_NAME) {
+    if (name && [META_NAME, OLD_META_NAME].includes(name.toLowerCase())) {
       return tag.match(/\bcontent\s*=\s*["']?([^"'\s>]+)/i)?.[1] || '';
     }
   }

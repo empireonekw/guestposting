@@ -33,4 +33,7 @@ const notificationSchema = new mongoose.Schema(
 // The notification bell polls this query every few seconds.
 notificationSchema.index({ recipient: 1, createdAt: -1 });
 
+// In development a hot reload would otherwise keep the old model, which
+// silently drops fields added since; rebuild it so new fields are saved.
+if (process.env.NODE_ENV !== 'production' && mongoose.models.Notification) mongoose.deleteModel('Notification');
 export default mongoose.models.Notification || mongoose.model('Notification', notificationSchema);

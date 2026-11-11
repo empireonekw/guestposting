@@ -1,4 +1,4 @@
-// LetRank's own metrics. No outside service is called: our team checks each
+// Our own metrics. No outside service is called: our team checks each
 // site's numbers and enters them in the admin panel. A check is dated, adds a
 // point to the monthly traffic history (which draws the trend chart) and
 // raises flags the admin report shows.

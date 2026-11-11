@@ -4,6 +4,11 @@ import Country from './models/Country';
 import { DEFAULT_NICHES } from '@/data/niches';
 import { DEFAULT_COUNTRIES, CONTINENTS } from '@/data/countries';
 import { LANGUAGES } from '@/data/languages';
+import { BLOCKED_NICHES } from '@/data/listingOptions';
+
+// Niches our payment provider doesn't allow never reach menus, filters or
+// forms (see listingOptions.js). Admins still see them in Niches & countries.
+const allowedNiche = (n) => !BLOCKED_NICHES.includes(n.slug);
 
 // Niches, countries and languages for menus, filters and forms. The first
 // call on an empty database seeds the default lists; after that the admin's
@@ -35,11 +40,12 @@ const load = async () => {
     Country.find({ isActive: true }).sort({ order: 1, name: 1 }).lean(),
   ]);
 
-  const top = nicheRows.filter((n) => !n.parent);
+  const shown = nicheRows.filter(allowedNiche);
+  const top = shown.filter((n) => !n.parent);
   const niches = top.map((n) => ({
     name: n.name,
     slug: n.slug,
-    children: nicheRows
+    children: shown
       .filter((c) => c.parent === n.slug)
       .map((c) => ({ name: c.name, slug: c.slug })),
   }));
@@ -51,7 +57,7 @@ const load = async () => {
 // The built-in lists, used when the database can't be reached so menus and
 // forms still render.
 const defaults = () => ({
-  niches: DEFAULT_NICHES.map((n) => ({ name: n.name, slug: n.slug, children: n.children.map(({ name, slug }) => ({ name, slug })) })),
+  niches: DEFAULT_NICHES.filter(allowedNiche).map((n) => ({ name: n.name, slug: n.slug, children: n.children.filter(allowedNiche).map(({ name, slug }) => ({ name, slug })) })),
   countries: DEFAULT_COUNTRIES.map(({ code, name, slug, continent }) => ({ code, name, slug, continent })),
   continents: CONTINENTS,
   languages: LANGUAGES,

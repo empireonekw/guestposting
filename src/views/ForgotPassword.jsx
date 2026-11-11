@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { Mail, Lock, ArrowLeft, ShieldCheck, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
+import BRAND from '@/data/brand';
+import Logo from '@/components/ui/Logo';
 
 const ForgotPassword = () => {
   const [step, setStep] = useState(1); 
@@ -95,8 +97,7 @@ const ForgotPassword = () => {
         <div className="absolute bottom-[-5%] left-[-5%] w-[300px] h-[300px] bg-emerald-500/10 rounded-full blur-[100px]"></div>
 
         <Link href="/" className="flex items-center gap-3 relative z-10 transition-transform hover:scale-105 origin-left">
-          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center font-bold text-lg shadow-xl shadow-blue-500/20">L</div>
-          <span className="text-2xl font-semibold tracking-tight">LetRank</span>
+          <Logo tone="light" size="md" />
         </Link>
 
         <div className="max-w-md relative z-10">
@@ -110,7 +111,7 @@ const ForgotPassword = () => {
         </div>
 
         <p className="text-slate-500 text-sm tracking-wide relative z-10 font-medium">
-          &copy; {new Date().getFullYear()} LetRank Workspace
+          &copy; {new Date().getFullYear()} {BRAND.name}
         </p>
       </div>
 

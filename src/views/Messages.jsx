@@ -4,12 +4,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  MessageSquare, LifeBuoy, Send, ArrowLeft, Plus, Lock, CheckCircle2, RotateCcw, Search, Ban, Globe,
+  MessageSquare, LifeBuoy, Send, ArrowLeft, Lock, CheckCircle2, RotateCcw, Search, Ban, Globe, PenSquare, X,
 } from 'lucide-react';
 import api from '@/lib/api';
 import Dialog from '@/components/ui/Dialog';
 import Button from '@/components/ui/Button';
 import { Field, Input, Textarea } from '@/components/ui/Field';
+import BRAND from '@/data/brand';
 
 const when = (d) => {
   const date = new Date(d);
@@ -39,7 +40,7 @@ const NewSupportDialog = ({ open, onClose, onCreated }) => {
     <Dialog
       open={open}
       onClose={onClose}
-      title="Contact LetRank support"
+      title={`Contact ${BRAND.supportName}`}
       footer={(<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={send} loading={state.sending} disabled={!subject.trim() || !body.trim()}>Send</Button></>)}
     >
       <div className="space-y-4">
@@ -48,6 +49,117 @@ const NewSupportDialog = ({ open, onClose, onCreated }) => {
         {state.error && <p className="rounded-lg bg-red-50 px-3 py-2 text-[13px] text-red-800">{state.error}</p>}
       </div>
     </Dialog>
+  );
+};
+
+// Admins writing to a user: pick the person (or arrive with them already
+// chosen from the Users page), write, send. The message goes into that
+// user's support chat with our team.
+const ComposePane = ({ initialUser, onCancel, onSent }) => {
+  const [to, setTo] = useState(initialUser);
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const [body, setBody] = useState('');
+  const [state, setState] = useState({ sending: false, error: '' });
+
+  useEffect(() => {
+    if (to || query.trim().length < 2) { setResults([]); return undefined; }
+    const t = setTimeout(async () => {
+      try {
+        const { data } = await api.get(`/admin/users?search=${encodeURIComponent(query.trim())}&limit=8`);
+        setResults(data.users.filter((u) => u.role !== 'admin'));
+      } catch {
+        setResults([]);
+      }
+    }, 250);
+    return () => clearTimeout(t);
+  }, [query, to]);
+
+  const send = async (e) => {
+    e?.preventDefault();
+    if (!to || !body.trim()) return;
+    setState({ sending: true, error: '' });
+    try {
+      const { data } = await api.post('/conversations', { kind: 'support', userId: to._id, body: body.trim() });
+      onSent(data._id);
+    } catch (err) {
+      setState({ sending: false, error: err.response?.data?.message || 'Could not send. Please try again.' });
+    }
+  };
+
+  return (
+    <form onSubmit={send} className="flex min-h-0 flex-1 flex-col">
+      <header className="flex items-center gap-3 border-b border-line px-5 py-3">
+        <button type="button" onClick={onCancel} aria-label="Back to conversations" className="rounded-lg p-1.5 text-ink-soft hover:bg-canvas md:hidden"><ArrowLeft size={18} /></button>
+        <p className="flex-1 text-[15px] font-semibold text-ink">New message</p>
+        <button type="button" onClick={onCancel} aria-label="Cancel" className="rounded-lg p-1.5 text-ink-faint hover:bg-canvas hover:text-ink"><X size={18} /></button>
+      </header>
+
+      <div className="border-b border-line px-5 py-3">
+        <div className="flex items-center gap-3">
+          <span className="text-[13px] font-medium text-ink-soft">To</span>
+          {to ? (
+            <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 py-1 pl-1 pr-2 text-[13px] font-semibold text-brand-800">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-600 text-[11px] text-white">{to.name?.charAt(0).toUpperCase()}</span>
+              {to.name}
+              {to.role && <span className="font-normal capitalize text-brand-700/70">· {to.role}</span>}
+              <button type="button" onClick={() => setTo(null)} aria-label="Change recipient" className="rounded-full p-0.5 hover:bg-brand-100"><X size={13} /></button>
+            </span>
+          ) : (
+            <div className="relative flex-1">
+              <input
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search a buyer or seller by name or email"
+                aria-label="Recipient"
+                className="h-9 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand-500"
+              />
+              {results.length > 0 && (
+                <ul className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 overflow-hidden rounded-xl border border-line bg-white shadow-[var(--shadow-pop)]">
+                  {results.map((u) => (
+                    <li key={u._id}>
+                      <button type="button" onClick={() => setTo(u)} className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-canvas">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-100 text-[12px] font-bold text-brand-700">{u.name.charAt(0).toUpperCase()}</span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[14px] font-medium text-ink">{u.name}</span>
+                          <span className="block truncate text-[12px] text-ink-faint">{u.email} · <span className="capitalize">{u.role}</span></span>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="flex min-h-0 flex-1 flex-col bg-canvas/60 p-5">
+        <p className="mb-3 text-[12px] text-ink-faint">
+          Sent as <strong className="text-ink-soft">{BRAND.supportName}</strong>. If this person already has an open support chat, the message is added to it.
+        </p>
+        <label className="sr-only" htmlFor="compose-body">Message</label>
+        <textarea
+          id="compose-body"
+          value={body}
+          maxLength={2000}
+          onChange={(e) => setBody(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send(); }}
+          placeholder={to ? `Write to ${to.name}…` : 'Choose who to write to first'}
+          disabled={!to}
+          className="min-h-40 flex-1 resize-none rounded-xl border border-line bg-white px-4 py-3 text-[14px] outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 disabled:bg-canvas"
+        />
+        {state.error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-[13px] text-red-800">{state.error}</p>}
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <span className="text-[12px] text-ink-faint">{body.length}/2000 · Ctrl + Enter to send</span>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={onCancel}>Cancel</Button>
+            <Button type="submit" loading={state.sending} disabled={!to || !body.trim()}>{!state.sending && <Send size={15} />} Send message</Button>
+          </div>
+        </div>
+      </div>
+    </form>
   );
 };
 
@@ -69,6 +181,12 @@ const Messages = () => {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [newOpen, setNewOpen] = useState(false);
+  // Admin composing a new message. ?to=<userId>&name=<name> (from the Users
+  // page) opens it with the person already chosen.
+  const [compose, setCompose] = useState(() => {
+    const q = new URLSearchParams(window.location.search);
+    return isAdmin && q.get('to') ? { user: { _id: q.get('to'), name: q.get('name') || 'User', role: q.get('role') || '' } } : null;
+  });
   const endRef = useRef(null);
   const lastAt = useRef(null);
 
@@ -132,6 +250,7 @@ const Messages = () => {
   useEffect(() => { endRef.current?.scrollIntoView({ block: 'end' }); }, [messages.length, selected]);
 
   const open = (id) => {
+    setCompose(null);
     setSelected(id);
     router.replace(id ? `/messages?c=${id}` : '/messages', { scroll: false });
   };
@@ -176,17 +295,19 @@ const Messages = () => {
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-ink">Messages</h1>
           <p className="mt-1 text-[15px] text-ink-soft">
-            {isAdmin ? 'Answer support questions and keep an eye on every conversation.' : 'Chat with sellers, buyers and LetRank support.'}
+            {isAdmin ? 'Answer support questions and keep an eye on every conversation.' : `Chat with sellers, buyers and ${BRAND.supportName}.`}
           </p>
         </div>
-        {!isAdmin && (
+        {isAdmin ? (
+          <Button onClick={() => { setSelected(null); setCompose({ user: null }); router.replace('/messages', { scroll: false }); }}><PenSquare size={16} /> New message</Button>
+        ) : (
           <Button onClick={() => setNewOpen(true)}><LifeBuoy size={16} /> Contact support</Button>
         )}
       </div>
 
       <div className="grid h-[calc(100vh-220px)] min-h-[520px] overflow-hidden rounded-3xl border border-line bg-white shadow-[var(--shadow-card)] md:grid-cols-[340px_1fr]">
         {/* Conversation list */}
-        <aside className={`flex min-h-0 flex-col border-r border-line ${selected ? 'hidden md:flex' : 'flex'}`}>
+        <aside className={`flex min-h-0 flex-col border-r border-line ${selected || compose ? 'hidden md:flex' : 'flex'}`}>
           {boxes.length > 1 && (
             <div className="flex gap-1 border-b border-line p-2" role="tablist">
               {boxes.map((b) => (
@@ -241,8 +362,15 @@ const Messages = () => {
         </aside>
 
         {/* Thread */}
-        <section className={`min-h-0 flex-col ${selected ? 'flex' : 'hidden md:flex'}`}>
-          {!selected ? (
+        <section className={`min-h-0 flex-col ${selected || compose ? 'flex' : 'hidden md:flex'}`}>
+          {compose ? (
+            <ComposePane
+              key={compose.user?._id || 'new'}
+              initialUser={compose.user}
+              onCancel={() => { setCompose(null); router.replace('/messages', { scroll: false }); }}
+              onSent={(id) => { setBox('support'); open(id); loadList(); }}
+            />
+          ) : !selected ? (
             <div className="flex flex-1 flex-col items-center justify-center p-10 text-center text-ink-faint">
               <MessageSquare size={36} strokeWidth={1.5} />
               <p className="mt-3 text-[15px] font-medium text-ink-soft">Choose a conversation</p>
@@ -301,7 +429,7 @@ const Messages = () => {
                     maxLength={2000}
                     onChange={(e) => setDraft(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-                    placeholder={thread?.kind === 'support' && isAdmin ? 'Reply as LetRank support…' : 'Write a message… (Enter to send)'}
+                    placeholder={thread?.kind === 'support' && isAdmin ? `Reply as ${BRAND.supportName}…` : 'Write a message… (Enter to send)'}
                     className="max-h-40 min-h-[44px] flex-1 resize-none rounded-xl border border-line bg-white px-3.5 py-2.5 text-[14px] outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10"
                   />
                   <Button type="submit" loading={sending} disabled={!draft.trim()} className="h-11" aria-label="Send">{!sending && <Send size={16} />}</Button>
@@ -313,9 +441,7 @@ const Messages = () => {
       </div>
 
       <NewSupportDialog open={newOpen} onClose={() => setNewOpen(false)} onCreated={(id) => { setNewOpen(false); setBox('mine'); open(id); loadList(); }} />
-      {isAdmin && (
-        <p className="mt-3 flex items-center gap-1.5 text-[12px] text-ink-faint"><Plus size={12} /> To contact a specific user, press Message next to them on the Users page.</p>
-      )}
+
     </div>
   );
 };

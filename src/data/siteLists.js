@@ -1,7 +1,9 @@
 // Ready-made lists at /sites/<slug>. Each one is the publisher list with some
 // filters fixed, plus its own title and description for search engines.
 
-export const SITE_LISTS = [
+import { BLOCKED_TOPICS } from './listingOptions';
+
+const ALL_SITE_LISTS = [
   {
     slug: 'premium',
     icon: 'star',
@@ -83,5 +85,8 @@ export const SITE_LISTS = [
     params: { maxTat: '1' },
   },
 ];
+
+// Lists for blocked topics (casino, CBD) are left out, so their pages 404.
+export const SITE_LISTS = ALL_SITE_LISTS.filter((l) => !Object.keys(l.params).some((k) => BLOCKED_TOPICS.includes(k)));
 
 export const SITE_LIST_BY_SLUG = Object.fromEntries(SITE_LISTS.map((l) => [l.slug, l]));

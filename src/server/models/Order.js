@@ -47,4 +47,7 @@ orderSchema.index({ seller: 1, createdAt: -1 });
 orderSchema.index({ listing: 1, status: 1 });
 orderSchema.index({ status: 1, createdAt: -1 });
 
+// In development a hot reload would otherwise keep the old model, which
+// silently drops fields added since; rebuild it so new fields are saved.
+if (process.env.NODE_ENV !== 'production' && mongoose.models.Order) mongoose.deleteModel('Order');
 export default mongoose.models.Order || mongoose.model('Order', orderSchema);

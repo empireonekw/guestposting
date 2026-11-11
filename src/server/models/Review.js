@@ -34,4 +34,7 @@ const reviewSchema = new mongoose.Schema(
 
 reviewSchema.index({ seller: 1, createdAt: -1 });
 
+// In development a hot reload would otherwise keep the old model, which
+// silently drops fields added since; rebuild it so new fields are saved.
+if (process.env.NODE_ENV !== 'production' && mongoose.models.Review) mongoose.deleteModel('Review');
 export default mongoose.models.Review || mongoose.model('Review', reviewSchema);

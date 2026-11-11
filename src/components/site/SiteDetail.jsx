@@ -9,6 +9,7 @@ import MessageSellerButton from './MessageSellerButton';
 import TrafficChart from './TrafficChart';
 import { compact, money } from '@/lib/format';
 import { LINK_TYPES, LINK_VALIDITY, RESTRICTED_TOPICS, labelOf } from '@/data/listingOptions';
+import BRAND from '@/data/brand';
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) : null);
 
@@ -80,7 +81,7 @@ const SiteDetail = ({ listing, others = [], taxonomy, rating }) => {
             <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
               <h2 id="metrics-h" className="text-lg font-semibold text-ink">Metrics</h2>
               {real ? (
-                <p className="inline-flex items-center gap-1.5 text-[12px] font-medium text-brand-700"><BadgeCheck size={13} /> Checked by LetRank on {checkedOn}</p>
+                <p className="inline-flex items-center gap-1.5 text-[12px] font-medium text-brand-700"><BadgeCheck size={13} /> Checked by {BRAND.name} on {checkedOn}</p>
               ) : (
                 <p className="inline-flex items-center gap-1.5 text-[12px] text-amber-700"><Info size={13} /> Reported by the seller, not yet checked by our team</p>
               )}

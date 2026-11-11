@@ -243,7 +243,7 @@ const SitesExplorer = ({ data, params, fixed = {}, taxonomy, basePath, error }) 
       const href = URL.createObjectURL(res.data);
       const a = document.createElement('a');
       a.href = href;
-      a.download = 'letrank-publishers.csv';
+      a.download = 'guestposting-publishers.csv';
       a.click();
       URL.revokeObjectURL(href);
     } catch {

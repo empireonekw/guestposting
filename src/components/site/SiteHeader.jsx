@@ -12,6 +12,8 @@ import Badge from '@/components/ui/Badge';
 import { buttonClass } from '@/components/ui/Button';
 import useSession from '@/lib/useSession';
 import { SITE_LISTS } from '@/data/siteLists';
+import BRAND from '@/data/brand';
+import Logo from '@/components/ui/Logo';
 
 const LIST_ICONS = {
   star: Star, trending: TrendingUp, search: Search, link: Link2, newspaper: Newspaper,
@@ -35,7 +37,6 @@ const SERVICES = [
       { label: 'Guest posts', href: '/sites', note: 'Articles on real publisher sites' },
       { label: 'Link insertions (niche edits)', href: '/sites/link-insertion', note: 'Your link in an existing article' },
       { label: 'Crypto guest posts', href: '/sites/crypto' },
-      { label: 'Casino & gambling posts', href: '/sites/casino' },
     ],
   },
   {
@@ -299,9 +300,8 @@ const SiteHeader = ({ taxonomy }) => {
     // itself inside the header instead of the whole screen.
     <header className="sticky top-0 z-50 border-b border-line bg-white" onMouseLeave={hoverClose}>
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-6 px-4 sm:px-6">
-        <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="LetRank home">
-          <span className="bg-brand-gradient flex h-8 w-8 items-center justify-center rounded-lg text-sm font-bold text-white">L</span>
-          <span className="text-lg font-semibold tracking-tight text-ink">LetRank</span>
+        <Link href="/" className="flex shrink-0 items-center" aria-label={`${BRAND.name} home`}>
+          <Logo size="md" />
         </Link>
 
         <nav aria-label="Main" className="hidden flex-1 items-center gap-1 lg:flex">
