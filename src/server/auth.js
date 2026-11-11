@@ -27,8 +27,18 @@ export const protect = async (request) => {
 };
 
 export const seller = (user) => {
+  if (user?.role === 'seller' && user.sellerStatus === 'blocked') {
+    return json({ message: 'Your seller account is blocked. Contact support to find out why.', sellerBlocked: true }, 403);
+  }
   if (user && (user.role === 'seller' || user.role === 'admin')) return null;
   return json({ message: 'Access denied. Only sellers or admins can perform this action.' }, 403);
+};
+
+// Sellers (even blocked ones) and admins: for read-only seller pages, so a
+// blocked seller can still see their sites and why they were blocked.
+export const sellerAny = (user) => {
+  if (user && (user.role === 'seller' || user.role === 'admin')) return null;
+  return json({ message: 'Access denied. Only sellers or admins can view this.' }, 403);
 };
 
 export const admin = (user) => {

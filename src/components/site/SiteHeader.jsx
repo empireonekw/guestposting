@@ -226,6 +226,7 @@ const SiteHeader = ({ taxonomy }) => {
   const [mobileSection, setMobileSection] = useState(null);
   const [accountOpen, setAccountOpen] = useState(false);
   const closeTimer = useRef(null);
+  const hoverAt = useRef(0);
   const accountRef = useRef(null);
 
   // Close everything after navigating.
@@ -259,7 +260,13 @@ const SiteHeader = ({ taxonomy }) => {
 
   const hoverOpen = (id) => {
     clearTimeout(closeTimer.current);
+    if (open !== id) hoverAt.current = Date.now();
     setOpen(id);
+  };
+  // A click right after the hover opened the menu should not close it again.
+  const clickMenu = (id) => {
+    if (open === id && Date.now() - hoverAt.current > 400) setOpen(null);
+    else setOpen(id);
   };
   const hoverClose = () => {
     clearTimeout(closeTimer.current);
@@ -293,7 +300,7 @@ const SiteHeader = ({ taxonomy }) => {
     <header className="sticky top-0 z-50 border-b border-line bg-white" onMouseLeave={hoverClose}>
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-6 px-4 sm:px-6">
         <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="LetRank home">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-sm font-bold text-white">L</span>
+          <span className="bg-brand-gradient flex h-8 w-8 items-center justify-center rounded-lg text-sm font-bold text-white">L</span>
           <span className="text-lg font-semibold tracking-tight text-ink">LetRank</span>
         </Link>
 
@@ -304,7 +311,7 @@ const SiteHeader = ({ taxonomy }) => {
               type="button"
               aria-expanded={open === m.id}
               onMouseEnter={() => hoverOpen(m.id)}
-              onClick={() => setOpen(open === m.id ? null : m.id)}
+              onClick={() => clickMenu(m.id)}
               className={`inline-flex h-16 items-center gap-1 border-b-2 px-3 text-sm font-medium transition-colors ${
                 open === m.id ? 'border-brand-600 text-ink' : 'border-transparent text-ink-soft hover:text-ink'
               }`}

@@ -1,4 +1,7 @@
 import User from '../models/User';
+import Notification from '../models/Notification';
+import { sendEmailInBackground } from '../sendEmail';
+import { escapeHtml } from '../escape';
 import Order from '../models/Order';
 import Listing from '../models/Listing';
 import ActivityLog from '../models/ActivityLog';
@@ -42,9 +45,15 @@ export const getAllUsers = async (request) => {
     const paging = getPaging(request, { defaultLimit: 25, maxLimit: 100 });
     const role = oneOf(q.role, 'role', 'Role', ['buyer', 'seller', 'admin'], { required: false });
     const search = str(q.search, 'search', 'Search', { required: false, max: 100 });
+    const sellerStatus = oneOf(q.seller, 'seller', 'Seller status', ['pending', 'approved', 'blocked'], { required: false });
 
     const query = {};
     if (role) query.role = role;
+    if (sellerStatus) {
+      query.role = 'seller';
+      // Older sellers have no status and count as approved.
+      query.sellerStatus = sellerStatus === 'approved' ? { $in: ['approved', null] } : sellerStatus;
+    }
     if (search) {
       const pattern = { $regex: escapeRegex(search), $options: 'i' };
       query.$or = [{ name: pattern }, { email: pattern }];
@@ -68,6 +77,8 @@ export const updateUserByAdmin = async (request, params, authUser) => {
     const body = await readBody(request);
     const role = oneOf(body.role, 'role', 'Role', ['buyer', 'seller', 'admin'], { required: false });
     const isSuspended = bool(body.isSuspended, 'isSuspended', 'Suspended');
+    const sellerStatus = oneOf(body.sellerStatus, 'sellerStatus', 'Seller status', ['pending', 'approved', 'blocked'], { required: false });
+    const reason = str(body.reason, 'reason', 'Reason', { required: false, max: 500 });
 
     if (userId === authUser.id) {
       if (isSuspended === true) return json({ message: "You can't suspend your own account." }, 400);
@@ -91,10 +102,33 @@ export const updateUserByAdmin = async (request, params, authUser) => {
       changes.push(isSuspended ? 'suspended' : 'unsuspended');
       user.isSuspended = isSuspended;
     }
+    // A user made a seller by role change starts approved (an admin chose it).
+    if (role === 'seller' && !user.sellerStatus && !sellerStatus) user.sellerStatus = 'approved';
+    let sellerMessage = null;
+    if (sellerStatus && user.role === 'seller' && sellerStatus !== (user.sellerStatus || 'approved')) {
+      changes.push(`seller ${user.sellerStatus || 'approved'} -> ${sellerStatus}`);
+      user.sellerStatus = sellerStatus;
+      user.sellerStatusReason = sellerStatus === 'blocked' ? reason : undefined;
+      sellerMessage = sellerStatus === 'approved'
+        ? 'Your seller account is approved. Your websites can now go live after review.'
+        : sellerStatus === 'blocked'
+          ? `Your seller account was blocked${reason ? `: ${reason}` : '.'} Your websites are hidden from buyers.`
+          : null;
+    } else if (sellerStatus && user.role !== 'seller') {
+      return json({ message: 'Only seller accounts have a seller status.' }, 400);
+    }
 
     const updatedUser = await user.save();
     if (changes.length) {
       await logActivity(authUser.id, 'USER_MODERATED', user._id, `${user.email}: ${changes.join(', ')}`);
+    }
+    if (sellerMessage) {
+      await Notification.create({ recipient: user._id, sender: authUser.id, type: 'seller_status', message: sellerMessage, link: '/my-listings' });
+      sendEmailInBackground({
+        email: user.email,
+        subject: 'Your LetRank seller account',
+        html: `<p>Hi ${escapeHtml(user.name)},</p><p>${escapeHtml(sellerMessage)}</p>`,
+      }, 'Seller status email');
     }
     const { password, resetPasswordOtp, ...safe } = updatedUser.toObject();
     return json(safe);

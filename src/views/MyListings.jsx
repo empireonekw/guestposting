@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { 
   Plus, TrendingUp, Shield, Edit3, Trash2, ExternalLink, 
-  Loader2, CheckCircle2, AlertCircle, X, Globe 
+  Loader2, CheckCircle2, AlertCircle, X, Globe, BadgeCheck, ShieldQuestion
 } from 'lucide-react';
+import VerifyDomainDialog from '@/components/listing/VerifyDomainDialog';
 
 const MyListings = () => {
   const [listings, setListings] = useState([]);
@@ -16,6 +17,8 @@ const MyListings = () => {
   
   const [processingId, setProcessingId] = useState(null);
   const [activeConfirmId, setActiveConfirmId] = useState(null);
+  const [verifyId, setVerifyId] = useState(null);
+  const [seller, setSeller] = useState({ status: null, reason: '' });
   const [alert, setAlert] = useState({ show: false, type: '', message: '' });
   
   const router = useRouter();
@@ -32,6 +35,7 @@ const MyListings = () => {
     try {
       const { data } = await api.get('/listings/my-listings');
       setListings(data.listings);
+      setSeller({ status: data.sellerStatus, reason: data.sellerStatusReason || '' });
       setStats(data.stats);
     } catch (err) { 
       showNotification('error', "Failed to load inventory."); 
@@ -59,6 +63,18 @@ const MyListings = () => {
 
   return (
     <div className="max-w-6xl mx-auto pb-20 py-8 px-4 sm:px-6">
+      {seller.status === 'pending' && (
+        <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-[14px] text-amber-900">
+          <p className="font-semibold">Your seller account is waiting for approval</p>
+          <p className="mt-0.5">You can add your websites now. Our team reviews new sellers, usually within a day; your sites go live after that. Questions? Open <a href="/messages" className="font-semibold underline">Messages</a> and contact support.</p>
+        </div>
+      )}
+      {seller.status === 'blocked' && (
+        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-[14px] text-red-900">
+          <p className="font-semibold">Your seller account is blocked</p>
+          <p className="mt-0.5">{seller.reason ? `Reason: ${seller.reason}. ` : ''}Your websites are hidden from buyers and you can't add or edit sites. Contact support in <a href="/messages" className="font-semibold underline">Messages</a>.</p>
+        </div>
+      )}
       
       {alert.show && (
         <div className={`mb-6 p-4 rounded-xl flex items-start gap-3 border shadow-sm ${
@@ -110,7 +126,7 @@ const MyListings = () => {
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100 text-[12px] font-semibold text-slate-500 uppercase tracking-wider">
                 <th className="p-4 pl-6">Website Domain</th>
-                <th className="p-4">Performance Metrics</th>
+                <th className="p-4">Metrics</th>
                 <th className="p-4">Current Status</th>
                 <th className="p-4">Price</th>
                 <th className="p-4 text-right pr-6">Management</th>
@@ -133,6 +149,13 @@ const MyListings = () => {
                       <div className="flex items-center gap-2 mb-0.5">
                         <span className="font-semibold text-slate-900 text-[15px]">{site.url.replace(/^https?:\/\/(www\.)?/, '')}</span>
                         <a href={site.url} target="_blank" rel="noreferrer" className="text-slate-300 hover:text-blue-600 transition-colors"><ExternalLink size={14} /></a>
+                        {site.isVerified ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700" title="You proved you own this domain"><BadgeCheck size={14} /> Verified</span>
+                        ) : (
+                          <button type="button" onClick={() => setVerifyId(site._id)} className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700 hover:bg-blue-100">
+                            <ShieldQuestion size={12} /> Verify ownership
+                          </button>
+                        )}
                       </div>
                       <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-slate-500 text-[10px] font-bold uppercase tracking-tight">{site.category}</span>
                     </td>
@@ -140,7 +163,13 @@ const MyListings = () => {
                       <div className="flex items-center gap-4">
                         <div className="flex items-center gap-1.5 font-medium text-slate-600"><TrendingUp size={14} className="text-emerald-500" /> {site.traffic.toLocaleString()}</div>
                         <div className="flex items-center gap-1.5 font-medium text-slate-600"><Shield size={14} className="text-blue-500" /> DA {site.da}</div>
+                        <div className="font-medium text-slate-600">DR {site.dr || 0}</div>
                       </div>
+                      <p className="mt-1 text-[11px] text-slate-400">
+                        {site.metrics?.source === 'checked'
+                          ? `Checked by LetRank · ${new Date(site.metrics.updatedAt).toLocaleDateString()}`
+                          : 'Your numbers · waiting for our check'}
+                      </p>
                     </td>
                     <td className="p-4">
                       <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wide border ${
@@ -197,6 +226,12 @@ const MyListings = () => {
           </table>
         </div>
       </div>
+      <VerifyDomainDialog
+        listingId={verifyId}
+        open={!!verifyId}
+        onClose={() => setVerifyId(null)}
+        onVerified={() => fetchMyInventory(true)}
+      />
     </div>
   );
 };

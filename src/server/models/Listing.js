@@ -74,11 +74,54 @@ const listingSchema = new mongoose.Schema(
     sampleUrls: { type: [String], default: [] },
     contentRules: { type: String, maxlength: 2000 },
 
+    // --- Module 2: real metrics ---
+    // What the seller typed, kept for the admin comparison report. Once our
+    // team has checked the site, a seller's numbers only land here, never in
+    // the public fields above.
+    sellerReported: {
+      dr: Number,
+      da: Number,
+      authorityScore: Number,
+      traffic: Number,
+      semrushTraffic: Number,
+      keywords: Number,
+      at: Date,
+    },
+    // Where the public numbers came from: the seller, or a dated check by
+    // our team in the admin panel.
+    metrics: {
+      source: { type: String, enum: ['seller', 'checked'], default: 'seller' },
+      updatedAt: Date,
+      checkedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    },
+    spamScore: { type: Number, min: 0, max: 100 },
+    // Problems the last metrics check found, for the admin report.
+    flags: {
+      type: [
+        new mongoose.Schema(
+          { type: { type: String }, message: String, at: Date },
+          { _id: false },
+        ),
+      ],
+      default: [],
+    },
+
+    // --- Module 2: domain ownership ---
+    verification: {
+      token: { type: String, select: false },
+      method: { type: String, enum: ['dns', 'meta'] },
+      verifiedAt: Date,
+      lastCheckedAt: Date,
+      lastError: { type: String, maxlength: 300 },
+      failures: { type: Number, default: 0 },
+    },
+
     status: {
       type: String,
       enum: ["pending", "approved", "rejected"],
       default: "pending",
     },
+    // true once the seller proved they own the domain (DNS record or meta tag).
     isVerified: { type: Boolean, default: false },
     isFeatured: { type: Boolean, default: false },
     featuredUntil: { type: Date },
@@ -120,6 +163,9 @@ listingSchema.index({ domain: 1 });
 // A seller's own listings, and duplicate checks.
 listingSchema.index({ seller: 1, isDeleted: 1, createdAt: -1 });
 listingSchema.index({ url: 1 });
+// The admin report sorts by the date of the last metrics check.
+listingSchema.index({ isDeleted: 1, 'metrics.updatedAt': 1 });
+listingSchema.index({ 'flags.type': 1 });
 // The featured-expiry job.
 listingSchema.index({ isFeatured: 1, featuredUntil: 1 });
 

@@ -26,7 +26,9 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 
-# deploy.sh build/rollback folders
+# deploy.sh build/rollback folders, and any other NEXT_DIST_DIR build folder
+# (Tailwind skips ignored folders; scanning built code breaks the CSS build)
 .next-build/
+.next-*/
 .next-old/
 .next-failed/

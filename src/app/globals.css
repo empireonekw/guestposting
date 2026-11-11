@@ -1,36 +1,104 @@
 @import "tailwindcss";
 
-/* LetRank design tokens. Components use these names (bg-brand-600,
-   text-ink, border-line ...) instead of raw colours, so the look can be
-   changed in one place. */
+/* LetRank design tokens, built from the brand palette:
+     #0E0B1D  night      (darkest background, main text)
+     #2A1E4D  deep       (dark surfaces)
+     #5A3B8C  royal      (primary buttons and links)
+     #8B7CC7  lavender   (accents, highlights)
+     #C9C2E3  mist       (soft borders and tints)
+     #3A3A52  slate      (secondary text)
+   New components use the semantic names (bg-brand-600, text-ink,
+   border-line …). The older screens use Tailwind's blue / indigo / slate /
+   gray classes, so those scales are remapped to the same palette below and
+   every page shares one look. */
 @theme {
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 
-  --color-brand-50: #eef4ff;
-  --color-brand-100: #dbe7fe;
-  --color-brand-200: #bfd3fe;
-  --color-brand-300: #93b4fd;
-  --color-brand-400: #608bfa;
-  --color-brand-500: #3b66f5;
-  --color-brand-600: #2549ea;
-  --color-brand-700: #1d38d7;
-  --color-brand-800: #1e30ae;
-  --color-brand-900: #1e2f89;
+  /* Purple brand scale */
+  --color-brand-50: #f6f4fb;
+  --color-brand-100: #ece8f6;
+  --color-brand-200: #c9c2e3;
+  --color-brand-300: #ab9fd6;
+  --color-brand-400: #8b7cc7;
+  --color-brand-500: #7058ad;
+  --color-brand-600: #5a3b8c;
+  --color-brand-700: #4a2f76;
+  --color-brand-800: #3a2560;
+  --color-brand-900: #2a1e4d;
+  --color-brand-950: #0e0b1d;
 
-  --color-ink: #0f172a;
-  --color-ink-soft: #475569;
-  --color-ink-faint: #94a3b8;
-  --color-line: #e2e8f0;
-  --color-line-soft: #f1f5f9;
+  /* Purple-tinted neutrals */
+  --color-slate-50: #f8f7fb;
+  --color-slate-100: #f1eff7;
+  --color-slate-200: #e4e1ee;
+  --color-slate-300: #cdc9dc;
+  --color-slate-400: #9c97b3;
+  --color-slate-500: #6e6987;
+  --color-slate-600: #4e4a66;
+  --color-slate-700: #3a3a52;
+  --color-slate-800: #241f3a;
+  --color-slate-900: #16122a;
+  --color-slate-950: #0e0b1d;
+
+  --color-gray-50: #f8f7fb;
+  --color-gray-100: #f1eff7;
+  --color-gray-200: #e4e1ee;
+  --color-gray-300: #cdc9dc;
+  --color-gray-400: #9c97b3;
+  --color-gray-500: #6e6987;
+  --color-gray-600: #4e4a66;
+  --color-gray-700: #3a3a52;
+  --color-gray-800: #241f3a;
+  --color-gray-900: #16122a;
+  --color-gray-950: #0e0b1d;
+
+  /* Older screens' blue and indigo accents become the brand purple. */
+  --color-blue-50: #f6f4fb;
+  --color-blue-100: #ece8f6;
+  --color-blue-200: #c9c2e3;
+  --color-blue-300: #ab9fd6;
+  --color-blue-400: #8b7cc7;
+  --color-blue-500: #7058ad;
+  --color-blue-600: #5a3b8c;
+  --color-blue-700: #4a2f76;
+  --color-blue-800: #3a2560;
+  --color-blue-900: #2a1e4d;
+  --color-blue-950: #0e0b1d;
+
+  --color-indigo-50: #f6f4fb;
+  --color-indigo-100: #ece8f6;
+  --color-indigo-200: #c9c2e3;
+  --color-indigo-300: #ab9fd6;
+  --color-indigo-400: #8b7cc7;
+  --color-indigo-500: #7058ad;
+  --color-indigo-600: #5a3b8c;
+  --color-indigo-700: #4a2f76;
+  --color-indigo-800: #3a2560;
+  --color-indigo-900: #2a1e4d;
+  --color-indigo-950: #0e0b1d;
+
+  /* Text, lines and surfaces */
+  --color-ink: #0e0b1d;
+  --color-ink-soft: #4e4a66;
+  --color-ink-faint: #858099;
+  --color-line: #e4e1ee;
+  --color-line-soft: #f1eff7;
   --color-surface: #ffffff;
-  --color-canvas: #f8fafc;
+  --color-canvas: #f8f7fb;
+
+  /* Dark sections (hero, footer) */
+  --color-night: #0e0b1d;
+  --color-deep: #2a1e4d;
+  --color-mist: #c9c2e3;
+  --color-lavender: #8b7cc7;
 
   --color-success: #059669;
   --color-warning: #d97706;
   --color-danger: #dc2626;
 
-  --radius-control: 0.625rem;
-  --shadow-pop: 0 12px 40px -8px rgb(15 23 42 / 0.18), 0 2px 6px rgb(15 23 42 / 0.06);
+  --radius-control: 0.75rem;
+  --shadow-pop: 0 16px 48px -12px rgb(42 30 77 / 0.28), 0 2px 8px rgb(14 11 29 / 0.06);
+  --shadow-card: 0 1px 2px rgb(14 11 29 / 0.04), 0 8px 24px -12px rgb(42 30 77 / 0.12);
 }
 
 @layer base {
@@ -42,9 +110,34 @@
     background: var(--color-surface);
     color: var(--color-ink);
   }
+  ::selection {
+    background: var(--color-brand-200);
+    color: var(--color-brand-950);
+  }
   :focus-visible {
     outline: 2px solid var(--color-brand-500);
     outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  /* The glowing night background from the brand artwork. */
+  .bg-aurora {
+    background-color: var(--color-night);
+    background-image:
+      radial-gradient(60% 50% at 0% 20%, rgb(139 124 199 / 0.45), transparent 70%),
+      radial-gradient(55% 45% at 100% 15%, rgb(139 124 199 / 0.40), transparent 70%),
+      radial-gradient(70% 60% at 50% 110%, rgb(90 59 140 / 0.55), transparent 70%),
+      linear-gradient(180deg, #2a1e4d 0%, #0e0b1d 75%);
+  }
+  .bg-brand-gradient {
+    background-image: linear-gradient(135deg, #5a3b8c 0%, #8b7cc7 100%);
+  }
+  .text-gradient {
+    background-image: linear-gradient(90deg, #c9c2e3 0%, #8b7cc7 55%, #c9c2e3 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
 }
 
@@ -52,6 +145,6 @@
    border so white flags stay visible on white. */
 .fi {
   border-radius: 2px;
-  box-shadow: 0 0 0 1px rgb(15 23 42 / 0.08);
+  box-shadow: 0 0 0 1px rgb(14 11 29 / 0.10);
   flex-shrink: 0;
 }

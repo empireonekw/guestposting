@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  Search, SlidersHorizontal, Download, ArrowUp, ArrowDown, ArrowUpDown, ExternalLink, BadgeCheck, Loader2, ShoppingCart, Lock,
+  Search, SlidersHorizontal, Download, ArrowUp, ArrowDown, ArrowUpDown, ExternalLink, BadgeCheck, Loader2, Lock,
 } from 'lucide-react';
 import api from '@/lib/api';
 import { compact, money } from '@/lib/format';
@@ -13,7 +14,7 @@ import Chip from '@/components/ui/Chip';
 import Flag from '@/components/ui/Flag';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
-import Dialog from '@/components/ui/Dialog';
+import BuyButton from './BuyButton';
 import Sparkline from '@/components/ui/Sparkline';
 import { Checkbox } from '@/components/ui/Field';
 import Pagination from '@/components/Pagination';
@@ -82,7 +83,7 @@ const MultiPanel = ({ items, selected, onToggle, placeholder, onClear }) => {
     <div className="space-y-2">
       <div className="relative">
         <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-faint" />
-        <input value={text} onChange={(e) => setText(e.target.value)} placeholder={placeholder} aria-label={placeholder} className="h-9 w-full rounded-lg border border-line pl-8 pr-2.5 text-sm outline-none focus:border-brand-500" />
+        <input autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder={placeholder} aria-label={placeholder} className="h-9 w-full rounded-lg border border-line pl-8 pr-2.5 text-sm outline-none focus:border-brand-500" />
       </div>
       <div className="max-h-72 space-y-0.5 overflow-y-auto pr-1">
         {shown.length === 0 && <p className="px-1 py-2 text-[13px] text-ink-faint">No matches.</p>}
@@ -121,7 +122,7 @@ const SortHeader = ({ label, sub, sortKey, sort, onSort, className = '' }) => {
   const Icon = !active ? ArrowUpDown : sort.endsWith('_asc') ? ArrowUp : ArrowDown;
   return (
     <th scope="col" className={`px-3 py-3 text-right ${className}`} aria-sort={active ? (sort.endsWith('_asc') ? 'ascending' : 'descending') : undefined}>
-      <button type="button" onClick={() => onSort(sortKey)} className={`ml-auto inline-flex items-center gap-1 text-[12px] font-semibold ${active ? 'text-brand-700' : 'text-ink-soft hover:text-ink'}`}>
+      <button type="button" onClick={() => onSort(sortKey)} aria-label={`Sort by ${sub ? `${sub} ` : ''}${label}`} className={`ml-auto inline-flex items-center gap-1 text-[12px] font-semibold ${active ? 'text-brand-700' : 'text-ink-soft hover:text-ink'}`}>
         <span className="text-right leading-tight">
           {sub && <span className="block text-[10px] font-medium uppercase tracking-wide text-ink-faint">{sub}</span>}
           {label}
@@ -167,8 +168,6 @@ const SitesExplorer = ({ data, params, fixed = {}, taxonomy, basePath, error }) 
   const [pending, startTransition] = useTransition();
   const [showFilters, setShowFilters] = useState(false);
   const [search, setSearch] = useState(params.q || '');
-  const [buying, setBuying] = useState(null);
-  const [orderState, setOrderState] = useState({ loading: false, error: '' });
   const [exporting, setExporting] = useState(false);
 
   useEffect(() => setSearch(params.q || ''), [params.q]);
@@ -253,23 +252,6 @@ const SitesExplorer = ({ data, params, fixed = {}, taxonomy, basePath, error }) 
       setExporting(false);
     }
     return undefined;
-  };
-
-  const startBuy = (listing) => {
-    if (!user) return goToLogin();
-    setOrderState({ loading: false, error: '' });
-    setBuying(listing);
-    return undefined;
-  };
-
-  const placeOrder = async () => {
-    setOrderState({ loading: true, error: '' });
-    try {
-      await api.post('/orders', { listingId: buying._id });
-      router.push('/orders');
-    } catch (err) {
-      setOrderState({ loading: false, error: err.response?.data?.message || 'Could not place the order. Please try again.' });
-    }
   };
 
   const chips = activeChips(params, { niches, countries: taxonomy.countries, languages: taxonomy.languages });
@@ -470,10 +452,12 @@ const SitesExplorer = ({ data, params, fixed = {}, taxonomy, basePath, error }) 
                     <tr key={l._id} className={`align-middle hover:bg-canvas ${l.isFeatured ? 'bg-amber-50/40' : ''}`}>
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-1.5">
-                          <a href={l.url} target="_blank" rel="noopener noreferrer nofollow" className="font-semibold text-ink hover:text-brand-700">
+                          <Link href={`/sites/${l.domain}`} className="font-semibold text-ink hover:text-brand-700">
                             {l.domain || l.url}
+                          </Link>
+                          <a href={l.url} target="_blank" rel="noopener noreferrer nofollow" aria-label={`Open ${l.domain} in a new tab`} className="text-ink-faint hover:text-brand-700">
+                            <ExternalLink size={12} />
                           </a>
-                          <ExternalLink size={12} className="text-ink-faint" aria-hidden="true" />
                           {l.isVerified && <BadgeCheck size={15} className="text-brand-600" aria-label="Verified" />}
                         </div>
                         <div className="mt-1 flex flex-wrap gap-1">
@@ -503,7 +487,7 @@ const SitesExplorer = ({ data, params, fixed = {}, taxonomy, basePath, error }) 
                         {l.linkInsertionPrice > 0 && <span className="block text-[11px] text-ink-faint">Insertion {money(l.linkInsertionPrice)}</span>}
                       </td>
                       <td className="px-4 py-3.5 text-right">
-                        <Button size="sm" onClick={() => startBuy(l)}><ShoppingCart size={14} /> Buy</Button>
+                        <BuyButton listing={l} />
                       </td>
                     </tr>
                   ))}
@@ -517,10 +501,10 @@ const SitesExplorer = ({ data, params, fixed = {}, taxonomy, basePath, error }) 
                 <li key={l._id} className="rounded-xl border border-line p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <a href={l.url} target="_blank" rel="noopener noreferrer nofollow" className="flex items-center gap-1.5 font-semibold text-ink">
+                      <Link href={`/sites/${l.domain}`} className="flex items-center gap-1.5 font-semibold text-ink">
                         <span className="truncate">{l.domain || l.url}</span>
                         {l.isVerified && <BadgeCheck size={15} className="shrink-0 text-brand-600" aria-label="Verified" />}
-                      </a>
+                      </Link>
                       <div className="mt-1.5"><NicheList slugs={l.niches} niches={niches} max={2} /></div>
                     </div>
                     <div className="shrink-0 text-right">
@@ -544,7 +528,7 @@ const SitesExplorer = ({ data, params, fixed = {}, taxonomy, basePath, error }) 
                         </span>
                       ))}
                     </div>
-                    <Button size="sm" onClick={() => startBuy(l)}><ShoppingCart size={14} /> Buy</Button>
+                    <BuyButton listing={l} />
                   </div>
                 </li>
               ))}
@@ -555,33 +539,6 @@ const SitesExplorer = ({ data, params, fixed = {}, taxonomy, basePath, error }) 
         )}
       </div>
 
-      <Dialog
-        open={!!buying}
-        onClose={() => setBuying(null)}
-        title="Order a guest post"
-        footer={(
-          <>
-            <Button variant="secondary" onClick={() => setBuying(null)}>Cancel</Button>
-            <Button onClick={placeOrder} loading={orderState.loading}>Place order</Button>
-          </>
-        )}
-      >
-        {buying && (
-          <div className="space-y-3 text-sm">
-            <div className="flex items-center justify-between">
-              <span className="font-semibold text-ink">{buying.domain || buying.url}</span>
-              <span className="text-lg font-bold tabular-nums">{money(buying.price)}</span>
-            </div>
-            <p className="text-ink-soft">
-              DR {buying.dr || '–'} · DA {buying.da || '–'} · {compact(buying.traffic)} monthly traffic · usually published in {buying.turnaroundDays ?? 3} day{buying.turnaroundDays === 1 ? '' : 's'}
-            </p>
-            <p className="rounded-lg bg-canvas px-3 py-2 text-[13px] text-ink-soft">
-              After you place the order you send the publisher your article or brief, target URL and anchor text.
-            </p>
-            {orderState.error && <p className="rounded-lg bg-red-50 px-3 py-2 text-[13px] text-red-800">{orderState.error}</p>}
-          </div>
-        )}
-      </Dialog>
     </div>
   );
 };

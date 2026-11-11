@@ -12,6 +12,8 @@ import './models/ActivityLog';
 import './models/JobRun';
 import './models/Niche';
 import './models/Country';
+import './models/Conversation';
+import './models/ChatMessage';
 
 // One connection per server process, shared across route handlers and
 // survives dev hot reloads.

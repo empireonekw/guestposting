@@ -9,8 +9,14 @@ const AdminUsers = () => {
   const [users, setUsers] = useState([]);
   const [paging, setPaging] = useState({ page: 1, pages: 1, total: 0, limit: 25 });
   const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
+  // ?search= (from Messages and the Live flow) pre-fills the search box.
+  const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get('search') || '');
   const [roleFilter, setRoleFilter] = useState('');
+  // ?seller=pending (from the Overview and notifications) opens that list.
+  const [sellerFilter, setSellerFilter] = useState(() => {
+    const v = new URLSearchParams(window.location.search).get('seller');
+    return ['pending', 'approved', 'blocked'].includes(v) ? v : '';
+  });
   
   // App States
   const [loading, setLoading] = useState(true);
@@ -30,6 +36,7 @@ const AdminUsers = () => {
       const params = new URLSearchParams({ page: String(page) });
       if (search.trim()) params.append('search', search.trim());
       if (roleFilter) params.append('role', roleFilter);
+      if (sellerFilter) params.append('seller', sellerFilter);
       const { data } = await api.get(`/admin/users?${params.toString()}`);
       setUsers(data.users);
       setPaging({ page: data.page, pages: data.pages, total: data.total, limit: data.limit });
@@ -43,10 +50,30 @@ const AdminUsers = () => {
   useEffect(() => {
     const t = setTimeout(fetchUsers, 300);
     return () => clearTimeout(t);
-  }, [page, search, roleFilter]);
+  }, [page, search, roleFilter, sellerFilter]);
 
   // A new search or role filter starts again from page 1.
-  useEffect(() => { setPage(1); }, [search, roleFilter]);
+  useEffect(() => { setPage(1); }, [search, roleFilter, sellerFilter]);
+
+  // Approve, block or unblock a seller. Blocking asks for a reason, which
+  // the seller sees.
+  const setSellerStatus = async (user, sellerStatus) => {
+    let reason;
+    if (sellerStatus === 'blocked') {
+      reason = window.prompt(`Why is ${user.name} blocked from selling? The seller will see this.`, '');
+      if (reason === null) return;
+    }
+    setProcessingAction({ id: user._id, type: 'seller' });
+    try {
+      await api.put(`/admin/users/${user._id}`, { sellerStatus, reason });
+      showNotification('success', sellerStatus === 'approved' ? `${user.name} can now sell.` : sellerStatus === 'blocked' ? `${user.name} is blocked from selling.` : 'Seller status updated.');
+      await fetchUsers();
+    } catch (err) {
+      showNotification('error', err.response?.data?.message || 'Could not update the seller.');
+    } finally {
+      setProcessingAction({ id: null, type: null });
+    }
+  };
 
   // Fires the API call when the inline confirm button is clicked
   const executeSuspensionToggle = async (user) => {
@@ -66,6 +93,18 @@ const AdminUsers = () => {
       showNotification('error', err.response?.data?.message || "Failed to update account status."); 
     } finally {
       setProcessingAction({ id: null, type: null });
+    }
+  };
+
+  // Opens a support chat with this user and goes to it.
+  const messageUser = async (user) => {
+    const text = window.prompt(`Message to ${user.name} (from LetRank support):`, '');
+    if (!text || !text.trim()) return;
+    try {
+      const { data } = await api.post('/conversations', { kind: 'support', userId: user._id, subject: 'Message from LetRank', body: text.trim() });
+      window.location.href = `/messages?c=${data._id}`;
+    } catch (err) {
+      showNotification('error', err.response?.data?.message || 'Could not send the message.');
     }
   };
 
@@ -138,6 +177,19 @@ const AdminUsers = () => {
             <option value="buyer">Buyers</option>
             <option value="seller">Sellers</option>
             <option value="admin">Admins</option>
+          </select>
+        </label>
+        <label>
+          <span className="sr-only">Filter sellers</span>
+          <select
+            value={sellerFilter}
+            onChange={(e) => setSellerFilter(e.target.value)}
+            className="w-full sm:w-48 px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-[13px] outline-none focus:border-blue-500"
+          >
+            <option value="">All sellers</option>
+            <option value="pending">Sellers waiting</option>
+            <option value="approved">Approved sellers</option>
+            <option value="blocked">Blocked sellers</option>
           </select>
         </label>
       </div>
@@ -230,15 +282,41 @@ const AdminUsers = () => {
 
                       {/* Status Badge Col */}
                       <td className="p-4">
+                        <div className="flex flex-col items-start gap-1.5">
                         {u.isSuspended ? (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-red-50 text-red-700 border border-red-100">
-                            <Ban size={12} /> Suspended
+                            <Ban size={12} /> Account blocked
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
                             <ShieldCheck size={12} /> Active
                           </span>
                         )}
+                        {u.role === 'seller' && (() => {
+                          const st = u.sellerStatus || 'approved';
+                          const busy = processingAction.id === u._id && processingAction.type === 'seller';
+                          return (
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${st === 'pending' ? 'bg-amber-50 text-amber-700' : st === 'blocked' ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'}`}>
+                                {st === 'pending' ? 'Seller waiting' : st === 'blocked' ? 'Selling blocked' : 'Approved seller'}
+                              </span>
+                              {st !== 'approved' && (
+                                <button type="button" disabled={busy} onClick={() => setSellerStatus(u, 'approved')} className="rounded-md bg-emerald-600 px-2 py-0.5 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
+                                  {st === 'blocked' ? 'Unblock' : 'Approve'}
+                                </button>
+                              )}
+                              {st !== 'blocked' && (
+                                <button type="button" disabled={busy} onClick={() => setSellerStatus(u, 'blocked')} className="rounded-md border border-red-200 px-2 py-0.5 text-[11px] font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">
+                                  Block selling
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })()}
+                        {u.role === 'seller' && u.sellerStatus === 'blocked' && u.sellerStatusReason && (
+                          <span className="max-w-[220px] text-[11px] text-slate-500">{u.sellerStatusReason}</span>
+                        )}
+                        </div>
                       </td>
 
                       {/* Quick Actions Col with Inline Popover */}
@@ -264,12 +342,15 @@ const AdminUsers = () => {
                                     u.isSuspended ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'
                                   }`}
                                 >
-                                  Yes, {u.isSuspended ? 'Activate' : 'Suspend'}
+                                  Yes, {u.isSuspended ? 'unblock' : 'block'}
                                 </button>
                               </div>
                             </div>
                           )}
 
+                          <button type="button" onClick={() => messageUser(u)} className="mr-2 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-[12px] font-medium text-slate-700 hover:bg-slate-50">
+                            <Mail size={13} /> Message
+                          </button>
                           {/* MAIN ACTION BUTTON (the owner can't be suspended) */}
                           {u.isOwner ? (
                             <span className="text-[12px] font-medium text-slate-400">Protected</span>
@@ -286,7 +367,7 @@ const AdminUsers = () => {
                             {isProcessingSuspension ? (
                               <><Loader2 size={14} className="animate-spin" /> Wait...</>
                             ) : (
-                              u.isSuspended ? 'Activate' : 'Suspend'
+                              u.isSuspended ? 'Unblock user' : 'Block user'
                             )}
                           </button>
                           )}

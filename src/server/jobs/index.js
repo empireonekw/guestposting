@@ -1,8 +1,55 @@
 import Listing from '../models/Listing';
 import User from '../models/User';
+import Notification from '../models/Notification';
 import { ensureOwnerAdmin } from '../owner';
+import { checkOwnership } from '../verification';
 
 const HOUR = 60 * 60 * 1000;
+const DAY = 24 * HOUR;
+
+// Verified domains are checked again every 30 days. Three failed checks in a
+// row (so a short outage doesn't count) remove the Verified badge.
+const recheckVerifiedDomains = async () => {
+  const due = await Listing.find({
+    isVerified: true,
+    isDeleted: { $ne: true },
+    'verification.method': { $in: ['dns', 'meta'] },
+    $or: [{ 'verification.lastCheckedAt': { $lt: new Date(Date.now() - 30 * DAY) } }, { 'verification.lastCheckedAt': null }],
+  })
+    .select('+verification.token')
+    .limit(50);
+  let lost = 0;
+  for (const listing of due) {
+    // eslint-disable-next-line no-await-in-loop
+    const result = await checkOwnership(listing.verification.method, listing.domain, listing.verification.token);
+    listing.set('verification.lastCheckedAt', new Date());
+    if (result.ok) {
+      listing.set('verification.failures', 0);
+      listing.set('verification.lastError', undefined);
+    } else {
+      const failures = (listing.verification.failures || 0) + 1;
+      listing.set('verification.failures', failures);
+      listing.set('verification.lastError', result.error);
+      if (failures >= 3) {
+        listing.isVerified = false;
+        lost += 1;
+        // eslint-disable-next-line no-await-in-loop
+        await Notification.create({
+          recipient: listing.seller,
+          type: 'listing_update',
+          message: `${listing.domain} lost its Verified badge: ${result.error}`,
+          link: '/my-listings',
+        });
+      } else {
+        // Try again tomorrow instead of in 30 days.
+        listing.set('verification.lastCheckedAt', new Date(Date.now() - 29 * DAY));
+      }
+    }
+    // eslint-disable-next-line no-await-in-loop
+    await listing.save();
+  }
+  return `${due.length} checked, ${lost} lost verification`;
+};
 
 // Every scheduled job: a unique name, how often it runs, and what it does.
 // run() returns a short summary that is logged and saved in JobRun.
@@ -26,6 +73,11 @@ const jobs = [
       );
       return `${res.modifiedCount} listing(s) unfeatured`;
     },
+  },
+  {
+    name: 'recheck-verified-domains',
+    everyMs: DAY,
+    run: recheckVerifiedDomains,
   },
   {
     name: 'clear-expired-reset-codes',

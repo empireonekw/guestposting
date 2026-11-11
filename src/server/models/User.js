@@ -37,6 +37,14 @@ const userSchema = new mongoose.Schema(
       type: Boolean, 
       default: false 
     },
+    // Sellers: 'pending' until an admin approves them, 'blocked' when an
+    // admin stops them selling (they can still buy and chat). Sellers from
+    // before this field existed count as approved.
+    sellerStatus: {
+      type: String,
+      enum: ['pending', 'approved', 'blocked'],
+    },
+    sellerStatusReason: { type: String, maxlength: 500 },
     
     // --- PASSWORD RECOVERY FIELDS ---
     // HMAC of the 6-digit code, never the code itself, and never sent to clients.
@@ -69,5 +77,9 @@ const userSchema = new mongoose.Schema(
 
 // Admin user list: newest first, filtered by role.
 userSchema.index({ role: 1, createdAt: -1 });
+userSchema.index({ role: 1, sellerStatus: 1 });
+
+// A seller's effective status (older sellers have none and are approved).
+export const sellerStatusOf = (user) => (user?.role === 'seller' ? user.sellerStatus || 'approved' : null);
 
 export default mongoose.models.User || mongoose.model('User', userSchema);

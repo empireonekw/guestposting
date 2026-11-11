@@ -23,7 +23,7 @@ const Contact = () => {
   };
 
   return (
-    <section id="contact" className="relative py-24 px-6 bg-[#0F172A] overflow-hidden">
+    <section id="contact" className="relative py-24 px-6 bg-aurora overflow-hidden">
       <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center relative z-10">
         
         {/* Left Column */}
@@ -31,10 +31,10 @@ const Contact = () => {
           <div>
             <h2 className="text-4xl md:text-5xl font-semibold tracking-tight text-white mb-6">
               Let’s scale your <br /> 
-              <span className="text-blue-500">search authority.</span>
+              <span className="text-gradient">search authority.</span>
             </h2>
             <p className="text-slate-400 text-lg font-medium leading-relaxed max-w-md">
-              Have questions about enterprise white-label solutions or joining as a premium publisher? Our team is ready to assist.
+              Questions about buying links in bulk, or selling posts on your own sites? Send us a message and our team will reply.
             </p>
           </div>
 

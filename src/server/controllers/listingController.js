@@ -1,8 +1,9 @@
 import { Readable } from 'stream';
+import { isIP } from 'node:net';
 import csv from 'csv-parser';
 import Listing from '../models/Listing';
 import Order from '../models/Order';
-import User from '../models/User';
+import User, { sellerStatusOf } from '../models/User';
 import Notification from '../models/Notification';
 import logActivity from '../logger';
 import { sendEmailInBackground } from '../sendEmail';
@@ -12,6 +13,7 @@ import { str, url as urlField, num, oneOf, ValidationError } from '../validate';
 import { getTaxonomy, nicheIndex } from '../taxonomy';
 import { searchListings, buildListingQuery, parseSort, PUBLIC_FIELDS } from '../listingSearch';
 import { LANGUAGE_NAMES } from '@/data/languages';
+import { METRIC_KEYS, isChecked, applyCheckedMetrics } from '../metrics';
 import {
   LINK_TYPES, LINK_VALIDITY, RESTRICTED_TOPICS, MAX_NICHES, MAX_LINKS_PER_POST, MAX_SAMPLE_URLS,
 } from '@/data/listingOptions';
@@ -63,7 +65,7 @@ const readNiches = (value, niches, { required }) => {
 };
 
 // [{code, share}] from an array or "us:54, ca:7.2, gb:2.6".
-const readTopCountries = (value) => {
+export const readTopCountries = (value) => {
   if (value === undefined || value === null || value === '') return undefined;
   const items = Array.isArray(value)
     ? value
@@ -120,6 +122,9 @@ const readListingFields = async (body, { partial = false } = {}) => {
   });
 
   const address = partial ? undefined : urlField(body.url, 'url', 'Website URL');
+  if (address && isIP(new URL(address).hostname.replace(/^\[|\]$/g, ''))) {
+    throw new ValidationError('Use the website\'s domain name, not an IP address', 'url');
+  }
   const fields = {
     url: address,
     domain: address ? hostOf(address) : undefined,
@@ -196,6 +201,50 @@ const csvRowToBody = (row) => ({
   contentRules: row.content_rules,
 });
 
+// Sellers' metric numbers are always kept in sellerReported for the admin
+// comparison. Once our team has checked a site (`locked`), the public numbers
+// come only from our checks, so a seller can't change them.
+const protectMetrics = (fields, { locked, nested }) => {
+  const reported = {};
+  METRIC_KEYS.forEach((k) => {
+    if (fields[k] !== undefined) reported[k] = fields[k];
+  });
+  if (Object.keys(reported).length) {
+    reported.at = new Date();
+    if (nested) fields.sellerReported = reported;
+    else Object.entries(reported).forEach(([k, v]) => { fields[`sellerReported.${k}`] = v; });
+  }
+  if (locked) {
+    METRIC_KEYS.forEach((k) => { delete fields[k]; });
+    delete fields.topCountries;
+  }
+  return fields;
+};
+
+// The metric values in a set of listing fields, for applyCheckedMetrics.
+const metricValues = (fields) => ({
+  ...Object.fromEntries(METRIC_KEYS.filter((k) => fields[k] !== undefined).map((k) => [k, fields[k]])),
+  ...(fields.topCountries ? { topCountries: fields.topCountries } : {}),
+});
+
+// A new listing document. Sites our own team adds go live straight away,
+// with their numbers counted as checked today.
+const buildListing = (fields, user) => {
+  const isAdmin = user.role === 'admin';
+  const { sellerReported, ...rest } = fields;
+  const listing = new Listing({
+    seller: user.id,
+    ...(isAdmin ? rest : fields),
+    status: isAdmin ? 'approved' : 'pending',
+  });
+  if (isAdmin) {
+    // Our own numbers: there is no seller figure to compare with.
+    listing.set('metrics.source', 'checked');
+    applyCheckedMetrics(listing, metricValues(fields), { userId: user.id });
+  }
+  return listing;
+};
+
 // Dotted "allowed.casino" keys -> a nested object, for create/insertMany.
 const nest = (fields) => {
   const out = {};
@@ -225,15 +274,11 @@ const findOwnDuplicate = async (sellerId, address) => {
 
 export const createListing = async (request, params, user) => {
   try {
-    const fields = nest(await readListingFields(await readBody(request)));
+    const fields = protectMetrics(nest(await readListingFields(await readBody(request))), { locked: false, nested: true });
     if (await findOwnDuplicate(user.id, fields.url)) {
       return json({ message: 'You have already listed this website.', field: 'url' }, 400);
     }
-    const listing = await Listing.create({
-      seller: user.id,
-      ...fields,
-      status: 'pending',
-    });
+    const listing = await buildListing(fields, user).save();
     return json(listing, 201);
   } catch (error) {
     return serverError(error);
@@ -293,6 +338,10 @@ export const approveListing = async (request, params, user) => {
   try {
     const listing = await findLiveListing(params.id);
     if (!listing) return json({ message: 'Listing not found' }, 404);
+    const owner = await User.findById(listing.seller).select('role sellerStatus');
+    if (['pending', 'blocked'].includes(sellerStatusOf(owner))) {
+      return json({ message: 'Approve this seller first (Users → Sellers waiting).' }, 400);
+    }
     listing.status = 'approved';
     listing.rejectionReason = undefined;
     const updatedListing = await listing.save();
@@ -346,6 +395,12 @@ export const updateListingStatus = async (request, params, user) => {
 
     const listing = await findLiveListing(params.id);
     if (!listing) return json({ message: 'Listing not found' }, 404);
+    if (status === 'approved') {
+      const owner = await User.findById(listing.seller).select('role sellerStatus');
+      const state = sellerStatusOf(owner);
+      if (state === 'pending') return json({ message: 'Approve this seller first (Users → Sellers waiting).' }, 400);
+      if (state === 'blocked') return json({ message: 'This seller is blocked, so their websites cannot go live.' }, 400);
+    }
 
     listing.status = status;
     listing.rejectionReason = status === 'rejected' ? reason : undefined;
@@ -427,12 +482,12 @@ export const bulkUploadListings = async (request, params, user) => {
     for (let i = 0; i < rows.length; i += 1) {
       const rowNumber = i + 2; // row 1 is the header
       try {
-        const fields = nest(await readListingFields(csvRowToBody(rows[i])));
+        const fields = protectMetrics(nest(await readListingFields(csvRowToBody(rows[i]))), { locked: false, nested: true });
         const host = hostOf(fields.url);
         if (seenHosts.has(host)) throw new ValidationError('This website appears twice in the file', 'url');
         if (await findOwnDuplicate(user.id, fields.url)) throw new ValidationError('You have already listed this website', 'url');
         seenHosts.add(host);
-        valid.push({ seller: user.id, ...fields, status: 'pending' });
+        valid.push(buildListing(fields, user));
       } catch (error) {
         if (!(error instanceof ValidationError)) throw error;
         errors.push({ row: rowNumber, url: rows[i].url || '', message: error.message });
@@ -459,9 +514,12 @@ export const getMyListings = async (request, params, user) => {
     const approvedListings = listings.filter((l) => l.status === 'approved').length;
     const pendingListings = listings.filter((l) => l.status === 'pending').length;
 
+    const me = await User.findById(user.id).select('role sellerStatus sellerStatusReason');
     return json({
       listings,
       stats: { totalListings, approvedListings, pendingListings },
+      sellerStatus: sellerStatusOf(me),
+      sellerStatusReason: me?.sellerStatusReason,
     });
   } catch (error) {
     return serverError(error);
@@ -478,13 +536,23 @@ export const updateListing = async (request, params, user) => {
       return json({ message: 'Not authorized to edit this listing' }, 403);
     }
 
-    listing.set(await readListingFields(await readBody(request), { partial: true }));
-
-    // A seller's edit goes back to "pending" so an admin re-checks the new
-    // metrics and price.
-    if (user.role !== 'admin') {
+    const fields = await readListingFields(await readBody(request), { partial: true });
+    if (user.role === 'admin') {
+      // An admin changing the numbers counts as a dated check by our team.
+      const values = metricValues(fields);
+      METRIC_KEYS.forEach((k) => { delete fields[k]; });
+      delete fields.topCountries;
+      listing.set(fields);
+      const sameCountries = !values.topCountries
+        || JSON.stringify(values.topCountries) === JSON.stringify((listing.topCountries || []).map((c) => ({ code: c.code, share: c.share })));
+      const changed = METRIC_KEYS.some((k) => values[k] !== undefined && values[k] !== listing[k]) || !sameCountries;
+      if (changed) applyCheckedMetrics(listing, values, { userId: user.id });
+    } else {
+      // Sellers only update their own reported numbers once we've checked.
+      listing.set(protectMetrics(fields, { locked: isChecked(listing), nested: false }));
+      // A seller's edit goes back to "pending" so an admin reviews it. The
+      // ownership badge stays: the domain hasn't changed.
       listing.status = 'pending';
-      listing.isVerified = false;
       listing.rejectionReason = undefined;
     }
 

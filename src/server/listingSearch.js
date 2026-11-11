@@ -63,15 +63,21 @@ const list = (value, max = 30) =>
 const yes = (value) => value === 'yes' || value === '1' || value === 'true';
 const no = (value) => value === 'no' || value === '0' || value === 'false';
 
+// Sellers whose listings buyers must not see.
+export const hiddenSellerIds = () =>
+  User.find({
+    $or: [{ isSuspended: true }, { role: 'seller', sellerStatus: { $in: ['pending', 'blocked'] } }],
+  }).distinct('_id');
+
 export const buildListingQuery = async (q) => {
   const taxonomy = await getTaxonomy();
   const niches = nicheIndex(taxonomy);
   const query = { status: 'approved', isDeleted: { $ne: true } };
   const and = [];
 
-  // Listings of suspended sellers are hidden from the marketplace.
-  const suspendedSellers = await User.find({ isSuspended: true }).distinct('_id');
-  if (suspendedSellers.length) query.seller = { $nin: suspendedSellers };
+  // Listings of suspended, blocked or not-yet-approved sellers are hidden.
+  const hidden = await hiddenSellerIds();
+  if (hidden.length) query.seller = { $nin: hidden };
 
   // Free text: a domain, or a niche name.
   const search = str(q.q ?? q.search, 'q', 'Search', { required: false, max: 100 });
@@ -151,6 +157,8 @@ export const PUBLIC_FIELDS = [
   'linkType', 'linkValidity', 'linksPerPost', 'googleNews', 'markedSponsored', 'acceptsSitewide',
   'acceptsForeignLanguage', 'allowed', 'turnaroundDays', 'sampleUrls', 'contentRules',
   'isVerified', 'isFeatured', 'seller', 'createdAt', 'updatedAt',
+  'spamScore', 'metrics.source', 'metrics.updatedAt',
+  'verification.verifiedAt',
 ].join(' ');
 
 // Plain JSON for the browser (ObjectIds and dates become strings).

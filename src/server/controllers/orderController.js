@@ -1,7 +1,7 @@
 import Order from '../models/Order';
 import Listing from '../models/Listing';
 import Notification from '../models/Notification';
-import User from '../models/User';
+import User, { sellerStatusOf } from '../models/User';
 import { sendEmailInBackground } from '../sendEmail';
 import { escapeHtml } from '../escape';
 import { json, readBody, serverError, queryParams, getPaging, pageInfo } from '../http';
@@ -24,8 +24,8 @@ export const createOrder = async (request, params, user) => {
       return json({ message: 'You cannot buy your own listing' }, 400);
     }
 
-    const listingSeller = await User.findById(listing.seller).select('isSuspended');
-    if (!listingSeller || listingSeller.isSuspended) {
+    const listingSeller = await User.findById(listing.seller).select('isSuspended role sellerStatus');
+    if (!listingSeller || listingSeller.isSuspended || ['pending', 'blocked'].includes(sellerStatusOf(listingSeller))) {
       return json({ message: 'This listing is currently unavailable.' }, 400);
     }
 

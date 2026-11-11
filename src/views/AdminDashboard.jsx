@@ -131,7 +131,7 @@ const AdminDashboard = () => {
   if (loading) return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] text-slate-400 space-y-4">
       <Loader2 size={32} className="animate-spin text-blue-500" />
-      <p className="text-[13px] font-medium uppercase tracking-widest">Loading Command Center...</p>
+      <p className="text-[13px] font-medium">Loading listings…</p>
     </div>
   );
 
@@ -139,7 +139,6 @@ const AdminDashboard = () => {
     <div className="max-w-7xl mx-auto p-10 text-center text-slate-500 text-[14px]">Could not load the admin dashboard. Please refresh the page.</div>
   );
 
-  const { stats, recentOrders } = data;
 
   return (
     <div className="max-w-7xl mx-auto pb-20">
@@ -163,34 +162,14 @@ const AdminDashboard = () => {
 
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Platform Overview</h1>
-        <p className="text-[14px] text-slate-500 mt-1">Manage growth, verify inventory, and oversee platform activity.</p>
-      </div>
-
-      {/* Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {[
-          { label: 'Total Revenue', val: `$${stats.totalRevenue.toLocaleString()}`, icon: <DollarSign size={20} strokeWidth={2}/>, color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-100/60' },
-          { label: 'Registered Users', val: stats.totalUsers, icon: <Users size={20} strokeWidth={2}/>, color: 'text-blue-600', bg: 'bg-blue-50 border-blue-100/60' },
-          { label: 'Live Inventory', val: stats.totalListings, icon: <Layers size={20} strokeWidth={2}/>, color: 'text-indigo-600', bg: 'bg-indigo-50 border-indigo-100/60' },
-          { label: 'Total Orders', val: stats.totalOrders, icon: <ShoppingCart size={20} strokeWidth={2}/>, color: 'text-amber-600', bg: 'bg-amber-50 border-amber-100/60' },
-        ].map((s, i) => (
-          <div key={i} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-start justify-between">
-            <div>
-              <p className="text-[12px] font-medium text-slate-500 mb-1">{s.label}</p>
-              <p className="text-[24px] font-bold text-slate-900 tracking-tight">{s.val}</p>
-            </div>
-            <div className={`w-10 h-10 rounded-xl ${s.bg} ${s.color} border flex items-center justify-center`}>
-              {s.icon}
-            </div>
-          </div>
-        ))}
+        <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Listings</h1>
+        <p className="text-[14px] text-slate-500 mt-1">Approve new websites, reject them with a reason, and manage live inventory.</p>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
         
         {/* Listing Management Center */}
-        <div className="xl:col-span-8 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col h-[600px] overflow-hidden">
+        <div className="xl:col-span-12 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col min-h-[600px] overflow-hidden">
           
           {/* Tabs Header */}
           <div className="px-6 pt-5 pb-4 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center gap-3">
@@ -341,40 +320,6 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* Recent Platform Activity Sidebar */}
-        <div className="xl:col-span-4 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden h-[600px] flex flex-col">
-          <div className="px-6 pt-5 pb-4 border-b border-slate-100 flex items-center gap-2">
-            <CheckCircle size={16} className="text-emerald-500" strokeWidth={2}/>
-            <h3 className="text-[13px] font-semibold text-slate-900">Recent Sales</h3>
-          </div>
-          
-          <div className="p-6 overflow-y-auto flex-1 space-y-5 bg-slate-50/30">
-            {recentOrders.length === 0 ? (
-               <p className="text-center text-slate-400 font-medium text-[13px] mt-10">No sales recorded yet.</p>
-            ) : (
-               recentOrders.map(order => (
-                 <div key={order._id} className="flex items-start gap-3 pb-5 border-b border-slate-100 last:border-0 last:pb-0">
-                   <div className="bg-white border border-slate-200 p-2 rounded-lg text-slate-400 shrink-0 shadow-sm mt-0.5">
-                     <ShoppingCart size={14} strokeWidth={2}/>
-                   </div>
-                   <div className="overflow-hidden">
-                     <p className="text-[13px] font-medium text-slate-900 truncate">
-                       <span className="font-semibold">{order.buyer?.name}</span> bought a post
-                     </p>
-                     <p className="text-[12px] font-medium text-blue-600 truncate mb-1">
-                       {order.listing?.url.replace(/^https?:\/\/(www\.)?/, '')}
-                     </p>
-                     <div className="flex items-center gap-2 text-[11px] font-medium text-slate-500">
-                       <span className="text-slate-700 font-semibold">${order.price}</span>
-                       <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                       <span>{new Date(order.createdAt).toLocaleDateString()}</span>
-                     </div>
-                   </div>
-                 </div>
-               ))
-            )}
-          </div>
-        </div>
       </div>
       
       <style>{`

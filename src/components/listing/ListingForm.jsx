@@ -267,7 +267,13 @@ const ListingForm = ({ initial, mode = 'create', onSubmit, submitLabel }) => {
 
         {step === 1 && (
           <>
-            <p className="text-sm text-ink-soft">Enter the numbers from your Ahrefs, Moz and Semrush accounts. Our team checks them before the listing goes live.</p>
+            {initial?.metrics?.source === 'checked' ? (
+              <p className="rounded-lg border border-brand-200 bg-brand-50 px-3.5 py-2.5 text-sm text-brand-800">
+                Our team checked these numbers on {new Date(initial.metrics.updatedAt).toLocaleDateString()}. Buyers see our checked numbers; if yours have changed, update them here and we&apos;ll check again.
+              </p>
+            ) : (
+              <p className="text-sm text-ink-soft">Enter the numbers from your Ahrefs, Moz and Semrush accounts. Our team checks them before buyers see them as checked.</p>
+            )}
             <div className="grid gap-5 sm:grid-cols-3">
               <Field label="DR (Ahrefs)" htmlFor="dr" error={errors.dr}><Input id="dr" type="number" min="0" max="100" value={form.dr} onChange={(e) => set('dr', e.target.value)} error={errors.dr} /></Field>
               <Field label="DA (Moz)" htmlFor="da" error={errors.da}><Input id="da" type="number" min="0" max="100" value={form.da} onChange={(e) => set('da', e.target.value)} error={errors.da} /></Field>

@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
-import User from '../models/User';
+import User, { sellerStatusOf } from '../models/User';
+import Notification from '../models/Notification';
 import sendEmail from '../sendEmail';
 import { generateToken } from '../auth';
 import { json, readBody, serverError } from '../http';
@@ -22,6 +23,7 @@ const sessionPayload = (user) => ({
   name: user.name,
   email: user.email,
   role: user.role,
+  sellerStatus: sellerStatusOf(user),
   token: generateToken(user._id),
 });
 
@@ -44,7 +46,23 @@ export const registerUser = async (request) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = await User.create({ name, email: address, password: hashedPassword, role });
+    const user = await User.create({
+      name, email: address, password: hashedPassword, role,
+      // New sellers wait for an admin to approve them.
+      ...(role === 'seller' ? { sellerStatus: 'pending' } : {}),
+    });
+    if (role === 'seller') {
+      const admins = await User.find({ role: 'admin', isSuspended: { $ne: true } }).distinct('_id');
+      if (admins.length) {
+        await Notification.insertMany(admins.map((id) => ({
+          recipient: id,
+          sender: user._id,
+          type: 'seller_signup',
+          message: `New seller waiting for approval: ${name}`,
+          link: '/admin/users?seller=pending',
+        })));
+      }
+    }
     return json(sessionPayload(user), 201);
   } catch (error) {
     return serverError(error);

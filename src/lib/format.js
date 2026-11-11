@@ -8,8 +8,12 @@ export const compact = (n) => {
   return String(Math.round(v));
 };
 
-export const money = (n) =>
-  `$${(Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+// "$150" for whole amounts, "$799.90" otherwise.
+export const money = (n) => {
+  const v = Number(n) || 0;
+  const cents = Number.isInteger(v) ? 0 : 2;
+  return `$${v.toLocaleString('en-US', { minimumFractionDigits: cents, maximumFractionDigits: cents })}`;
+};
 
 export const hostOf = (url) =>
   String(url || '').replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/.*$/, '');
