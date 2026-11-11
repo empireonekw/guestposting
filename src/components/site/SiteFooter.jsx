@@ -59,6 +59,7 @@ const SiteFooter = ({ taxonomy }) => {
             <li><Link href="/register" className="hover:text-white">Sell guest posts</Link></li>
             <li><Link href="/login" className="hover:text-white">Sign in</Link></li>
             <li><Link href="/contact" className="hover:text-white">Contact us</Link></li>
+            <li><a href={`mailto:${BRAND.supportEmail}`} className="break-all hover:text-white">{BRAND.supportEmail}</a></li>
             <li className="pt-2 text-[12px] font-semibold uppercase tracking-wider text-white">Legal</li>
             {POLICIES.filter((p) => p.href !== '/contact').map((p) => (
               <li key={p.href}><Link href={p.href} className="hover:text-white">{p.title}</Link></li>

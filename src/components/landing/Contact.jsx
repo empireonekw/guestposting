@@ -40,7 +40,7 @@ const Contact = () => {
           </div>
 
           <div className="space-y-5">
-            <div className="flex items-center gap-4 group cursor-pointer w-fit">
+            <a href={`mailto:${BRAND.supportEmail}`} className="flex items-center gap-4 group w-fit">
               <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-blue-400 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
                 <Mail size={20} />
               </div>
@@ -48,7 +48,7 @@ const Contact = () => {
                 <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Email Us</p>
                 <p className="text-slate-200 font-semibold group-hover:text-white transition-colors">{BRAND.supportEmail}</p>
               </div>
-            </div>
+            </a>
           </div>
         </div>
 

@@ -7,7 +7,8 @@ const BRAND = {
   tagline: 'Buy guest posts. Build authority.',
   promise: 'Quality articles · Strong backlinks · Real growth',
   supportName: 'Guest Posting support',
-  supportEmail: 'support@guestposting.live',
+  // Shown on the contact page, footer, policies and contact section.
+  supportEmail: 'guestpost.lives@gmail.com',
   logo: {
     mark: '/brand/logo-mark.png', // icon only (600 x 366), for headers and menus
     full: '/brand/logo-full.webp', // full logo with name and tagline (square)
