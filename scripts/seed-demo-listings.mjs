@@ -57,7 +57,7 @@ const NICHE_SETS = [
   ['technology-gadgets', 'saas'], ['business', 'startups-entrepreneurship'], ['finance', 'personal-finance'],
   ['health', 'fitness'], ['travel-tourism', 'hotels'], ['real-estate'], ['crypto-blockchain', 'defi'],
   ['home-garden', 'home-improvement'], ['home-services', 'plumbing', 'hvac'], ['digital-marketing', 'seo'],
-  ['fashion', 'beauty'], ['sports', 'football'], ['education'], ['food-drink'], ['casino-gambling'], ['cbd-cannabis'],
+  ['fashion', 'beauty'], ['sports', 'football'], ['education'], ['food-drink'],
   ['lifestyle', 'general'], ['news-magazines'], ['automotive', 'electric-vehicles'], ['legal'],
 ];
 const COUNTRY_SETS = [
@@ -98,8 +98,6 @@ for (let i = 0; i < 60; i += 1) {
     semrush: Math.round(traffic * (0.6 + rand() * 0.6)),
   }));
   const niches = pick(NICHE_SETS);
-  const isCasino = niches.includes('casino-gambling');
-  const isCbd = niches.includes('cbd-cannabis');
   docs.push({
     seller: seller._id,
     url: `https://${domain}/`,
@@ -127,11 +125,12 @@ for (let i = 0; i < 60; i += 1) {
     acceptsSitewide: rand() < 0.15,
     acceptsForeignLanguage: rand() < 0.1,
     allowed: {
-      casino: isCasino || rand() < 0.12,
-      cbd: isCbd || rand() < 0.1,
+      // No gambling, betting or CBD: our payment provider doesn't allow them.
+      casino: false,
+      cbd: false,
       crypto: niches.includes('crypto-blockchain') || rand() < 0.25,
       pharmacy: rand() < 0.08,
-      sports: rand() < 0.15,
+      sports: false,
     },
     turnaroundDays: pick([1, 1, 2, 3, 3, 5, 7]),
     sampleUrls: [],

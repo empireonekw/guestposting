@@ -4,6 +4,7 @@ import Notification from './models/Notification';
 import { sendEmailInBackground } from './sendEmail';
 import { escapeHtml } from './escape';
 import BRAND from '@/data/brand';
+import { BLOCKED_NICHES, BLOCKED_REASON } from '@/data/listingOptions';
 
 // The admin listing queue: approve, reject, ask for changes or move back to
 // pending, for one listing or many at once. Sellers hear about the result
@@ -111,7 +112,9 @@ export const reviewListings = async (listings, status, note, admin) => {
   }
 
   for (const listing of listings) {
-    const blocked = status === 'approved' ? blockReason(stateOf(listing)) : null;
+    // Gambling, betting and CBD sites can't go live (payment provider rules).
+    const topicBlocked = status === 'approved' && (listing.niches || []).some((n) => BLOCKED_NICHES.includes(n)) ? BLOCKED_REASON : null;
+    const blocked = topicBlocked || (status === 'approved' ? blockReason(stateOf(listing)) : null);
     if (blocked) {
       skipped.push({ _id: listing._id, site: siteName(listing), message: blocked });
       continue; // eslint-disable-line no-continue

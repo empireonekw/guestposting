@@ -429,7 +429,7 @@ export const bulkReviewListings = async (request, params, user) => {
 
     const missing = ids.length - listings.length;
     const parts = [`${done.length} listing${done.length === 1 ? '' : 's'} ${BULK_TEXT[status]}.`];
-    if (skipped.length) parts.push(`${skipped.length} skipped because the seller isn't approved.`);
+    if (skipped.length) parts.push(`${skipped.length} skipped: ${[...new Set(skipped.map((x) => x.message))].join(' ')}`);
     if (missing) parts.push(`${missing} no longer exist${missing === 1 ? 's' : ''}.`);
     return json({ message: parts.join(' '), updated: done.length, skipped }, done.length ? 200 : 400);
   } catch (error) {

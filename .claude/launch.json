@@ -4,24 +4,13 @@
     {
       "name": "dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "run",
-        "dev"
-      ],
+      "runtimeArgs": ["run", "dev"],
       "port": 3000
     },
     {
       "name": "dev-3101",
       "url": "http://localhost:3101",
       "port": 3101
-    },
-    {
-      "name": "e2e-test",
-      "runtimeExecutable": "node",
-      "runtimeArgs": [
-        "/private/tmp/claude-501/-Users-sherry--claude-spares-spare-TalDQW/68dfdfa0-ffd7-446e-bf65-151db7335d6e/scratchpad/dev.cjs"
-      ],
-      "port": 3102
     }
   ]
 }
