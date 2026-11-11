@@ -1,0 +1,90 @@
+// The default niche list. It seeds the Niche collection the first time the
+// app runs; after that the admin edits niches in the database. Listings store
+// niche slugs, so a slug should never change once listings use it.
+
+export const slugify = (text) =>
+  String(text)
+    .toLowerCase()
+    .replace(/&/g, ' ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+// [name, sub-niches?]
+const RAW = [
+  ['Agriculture & Farming'],
+  ['Animals & Pets'],
+  ['Artificial Intelligence'],
+  ['Arts & Photography'],
+  ['Astrology'],
+  ['Automotive', ['Cars', 'Motorcycles', 'Electric Vehicles']],
+  ['Aviation & Aerospace'],
+  ['Beauty', ['Skincare', 'Hair Care', 'Makeup']],
+  ['Books & Literature'],
+  ['Business', ['Startups & Entrepreneurship', 'Human Resources', 'Services & Consulting']],
+  ['Casino & Gambling'],
+  ['CBD & Cannabis'],
+  ['Charity & Non-Profit'],
+  ['Computers & Electronics'],
+  ['Construction & Repairs'],
+  ['Crafts & DIY'],
+  ['Crypto & Blockchain', ['Bitcoin', 'NFT & Web3', 'DeFi']],
+  ['Culture & Society'],
+  ['Cybersecurity'],
+  ['Dating & Relationships'],
+  ['Digital Marketing', ['SEO', 'Social Media Marketing', 'Content Marketing', 'Advertising']],
+  ['E-commerce'],
+  ['Education', ['Online Courses', 'Study Abroad', 'Language Learning']],
+  ['Energy', ['Renewable Energy & Solar', 'Oil & Gas']],
+  ['Entertainment', ['Movies & TV', 'Celebrities']],
+  ['Environment & Nature'],
+  ['Events & Weddings'],
+  ['Fashion', ['Jewelry', 'Shoes', 'Clothing']],
+  ['Finance', ['Banking', 'Insurance', 'Loans & Credit', 'Personal Finance', 'Forex & Trading', 'Fintech']],
+  ['Food & Drink', ['Recipes', 'Restaurants', 'Wine & Beer']],
+  ['For Men'],
+  ['For Women'],
+  ['Gaming', ['Video Games', 'Esports', 'Mobile Games']],
+  ['Gardening'],
+  ['General'],
+  ['Graphics & Design'],
+  ['Health', ['Fitness', 'Mental Health', 'Nutrition & Supplements', 'Medical', 'Dental']],
+  ['Hobbies & Leisure'],
+  ['Home & Garden', ['Home Decor', 'Home Improvement', 'Furniture', 'Kitchen']],
+  ['Home Services', ['Cleaning', 'Electrician', 'HVAC', 'Pest Control', 'Plumbing', 'Roofing', 'Moving']],
+  ['Industrial & Manufacturing'],
+  ['Internet & Telecom'],
+  ['Jobs & Careers'],
+  ['Kids & Parenting'],
+  ['Legal', ['Personal Injury', 'Immigration', 'Family Law']],
+  ['Lifestyle'],
+  ['Local & City Guides'],
+  ['Logistics & Transport'],
+  ['Music'],
+  ['News & Magazines'],
+  ['Outdoors', ['Camping', 'Fishing', 'Hiking', 'Hunting']],
+  ['Personal Development'],
+  ['Pharmacy'],
+  ['Photography'],
+  ['Politics'],
+  ['Real Estate', ['Property Investment', 'Mortgages', 'Architecture']],
+  ['Religion & Spirituality'],
+  ['Reviews & Comparisons'],
+  ['SaaS'],
+  ['Science'],
+  ['Senior Care'],
+  ['Shopping & Deals'],
+  ['Social Media'],
+  ['Software & Web Development', ['Web Hosting', 'Mobile Apps', 'Programming']],
+  ['Sports', ['Football', 'Cricket', 'Basketball', 'Golf', 'Betting & Fantasy Sports']],
+  ['Technology & Gadgets'],
+  ['Travel & Tourism', ['Hotels', 'Flights', 'Travel Guides']],
+  ['Vaping'],
+  ['Wellness & Yoga'],
+];
+
+export const DEFAULT_NICHES = RAW.map(([name, children = []], i) => ({
+  name,
+  slug: slugify(name),
+  order: i,
+  children: children.map((child, j) => ({ name: child, slug: slugify(child), order: j })),
+}));

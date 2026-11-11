@@ -98,7 +98,7 @@ const Layout = ({ children }) => {
   };
 
   const menuItems = [
-    { name: "Marketplace", icon: <Globe size={16} />, path: "/marketplace", roles: ["buyer", "seller", "admin"] },
+    { name: "Find sites", icon: <Globe size={16} />, path: "/sites", roles: ["buyer", "seller", "admin"] },
     { name: userInfo?.role === "seller" ? "My Sales" : "My Purchases", icon: <ShoppingBag size={16} />, path: "/orders", roles: ["buyer", "seller", "admin"] },
     { name: "Add Website", icon: <PlusSquare size={16} />, path: "/add-listing", roles: ["seller", "admin"] },
     { name: "My Inventory", icon: <Layers size={16} />, path: "/my-listings", roles: ["seller", "admin"] },

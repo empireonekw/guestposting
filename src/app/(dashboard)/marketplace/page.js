@@ -1,5 +1,6 @@
-import Dashboard from '@/views/Dashboard';
+import { redirect } from 'next/navigation';
 
+// The marketplace moved to the public publisher list.
 export default function Page() {
-  return <Dashboard />;
+  redirect('/sites');
 }

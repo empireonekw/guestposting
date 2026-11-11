@@ -25,7 +25,7 @@ const Register = () => {
     try {
       const { data } = await api.post('/auth/register', formData);
       localStorage.setItem('userInfo', JSON.stringify(data));
-      router.push('/marketplace');
+      router.push(data.role === 'seller' ? '/add-listing' : '/sites');
     } catch (err) {
       setError(err.response?.data?.message || 'Something went wrong. Please try again.');
       setLoading(false);

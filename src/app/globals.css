@@ -1,1 +1,57 @@
 @import "tailwindcss";
+
+/* LetRank design tokens. Components use these names (bg-brand-600,
+   text-ink, border-line ...) instead of raw colours, so the look can be
+   changed in one place. */
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --color-brand-50: #eef4ff;
+  --color-brand-100: #dbe7fe;
+  --color-brand-200: #bfd3fe;
+  --color-brand-300: #93b4fd;
+  --color-brand-400: #608bfa;
+  --color-brand-500: #3b66f5;
+  --color-brand-600: #2549ea;
+  --color-brand-700: #1d38d7;
+  --color-brand-800: #1e30ae;
+  --color-brand-900: #1e2f89;
+
+  --color-ink: #0f172a;
+  --color-ink-soft: #475569;
+  --color-ink-faint: #94a3b8;
+  --color-line: #e2e8f0;
+  --color-line-soft: #f1f5f9;
+  --color-surface: #ffffff;
+  --color-canvas: #f8fafc;
+
+  --color-success: #059669;
+  --color-warning: #d97706;
+  --color-danger: #dc2626;
+
+  --radius-control: 0.625rem;
+  --shadow-pop: 0 12px 40px -8px rgb(15 23 42 / 0.18), 0 2px 6px rgb(15 23 42 / 0.06);
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body {
+    background: var(--color-surface);
+    color: var(--color-ink);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 2px;
+  }
+}
+
+/* Flags from the flag-icons package keep their 4:3 shape and a hairline
+   border so white flags stay visible on white. */
+.fi {
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgb(15 23 42 / 0.08);
+  flex-shrink: 0;
+}

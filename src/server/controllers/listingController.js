@@ -9,6 +9,12 @@ import { sendEmailInBackground } from '../sendEmail';
 import { escapeHtml } from '../escape';
 import { json, readBody, serverError, queryParams, getPaging, pageInfo, escapeRegex } from '../http';
 import { str, url as urlField, num, oneOf, ValidationError } from '../validate';
+import { getTaxonomy, nicheIndex } from '../taxonomy';
+import { searchListings, buildListingQuery, parseSort, PUBLIC_FIELDS } from '../listingSearch';
+import { LANGUAGE_NAMES } from '@/data/languages';
+import {
+  LINK_TYPES, LINK_VALIDITY, RESTRICTED_TOPICS, MAX_NICHES, MAX_LINKS_PER_POST, MAX_SAMPLE_URLS,
+} from '@/data/listingOptions';
 
 // Deleted listings are kept for order history but hidden everywhere else.
 const notDeleted = { isDeleted: { $ne: true } };
@@ -17,18 +23,191 @@ const findLiveListing = (id) => Listing.findOne({ _id: id, ...notDeleted });
 const MAX_PRICE = 100000;
 const MAX_TRAFFIC = 10_000_000_000;
 
+const BOOL_WORDS = { yes: true, true: true, 1: true, y: true, no: false, false: false, 0: false, n: false };
+
+// true/false from a checkbox or a CSV "yes"/"no".
+const flag = (value, field, label) => {
+  if (value === undefined || value === null || value === '') return undefined;
+  if (typeof value === 'boolean') return value;
+  const word = BOOL_WORDS[String(value).trim().toLowerCase()];
+  if (word === undefined) throw new ValidationError(`${label} must be yes or no`, field);
+  return word;
+};
+
+const asList = (value) => {
+  if (value === undefined || value === null || value === '') return undefined;
+  if (Array.isArray(value)) return value.map((v) => String(v).trim()).filter(Boolean);
+  return String(value).split(/[|;,]/).map((v) => v.trim()).filter(Boolean);
+};
+
+const intField = (value, field, label, max = MAX_TRAFFIC) =>
+  num(value, field, label, { required: false, min: 0, max, integer: true });
+
+// Niche slugs from slugs or names ("SaaS", "saas"), checked against the list.
+const readNiches = (value, niches, { required }) => {
+  const items = asList(value);
+  if (!items || items.length === 0) {
+    if (required) throw new ValidationError('Choose at least one niche', 'niches');
+    return undefined;
+  }
+  const byName = new Map([...niches.values()].map((n) => [n.name.toLowerCase(), n.slug]));
+  const slugs = [];
+  items.forEach((item) => {
+    const key = item.toLowerCase();
+    const slug = niches.has(key) ? key : byName.get(key);
+    if (!slug) throw new ValidationError(`Unknown niche: ${item}`, 'niches');
+    if (!slugs.includes(slug)) slugs.push(slug);
+  });
+  if (slugs.length > MAX_NICHES) throw new ValidationError(`Choose at most ${MAX_NICHES} niches`, 'niches');
+  return slugs;
+};
+
+// [{code, share}] from an array or "us:54, ca:7.2, gb:2.6".
+const readTopCountries = (value) => {
+  if (value === undefined || value === null || value === '') return undefined;
+  const items = Array.isArray(value)
+    ? value
+    : String(value).split(/[|;,]/).map((part) => {
+      const [code, share] = part.split(':');
+      return { code, share };
+    });
+  const rows = items
+    .filter((c) => c && String(c.code || '').trim())
+    .map((c, i) => {
+      const code = String(c.code).trim().toLowerCase();
+      if (!/^[a-z]{2}$/.test(code)) throw new ValidationError(`Top country ${i + 1} must be a 2-letter country code`, 'topCountries');
+      const share = num(c.share, 'topCountries', `Share of top country ${i + 1}`, { required: false, min: 0, max: 100 });
+      return { code, share: share ?? 0 };
+    });
+  if (rows.length > 3) throw new ValidationError('Add at most 3 top countries', 'topCountries');
+  if (rows.reduce((sum, c) => sum + c.share, 0) > 100.5) throw new ValidationError('Top country shares add up to more than 100%', 'topCountries');
+  return rows;
+};
+
+const readSampleUrls = (value) => {
+  const items = asList(value);
+  if (!items) return undefined;
+  if (items.length > MAX_SAMPLE_URLS) throw new ValidationError(`Add at most ${MAX_SAMPLE_URLS} sample posts`, 'sampleUrls');
+  return items.map((u, i) => urlField(u, 'sampleUrls', `Sample post ${i + 1}`));
+};
+
+const enumField = (value, field, label, options) => {
+  if (value === undefined || value === null || value === '') return undefined;
+  const v = String(value).trim().toLowerCase();
+  const match = options.find((o) => o.value === v || o.label.toLowerCase() === v);
+  if (!match) throw new ValidationError(`${label} must be one of: ${options.map((o) => o.label).join(', ')}`, field);
+  return match.value;
+};
+
 // The fields a seller sends for one listing, checked and cleaned. With
 // `partial`, missing fields are left out (for edits).
-const readListingFields = (body, { partial = false } = {}) => {
+const readListingFields = async (body, { partial = false } = {}) => {
   const required = !partial;
+  const taxonomy = await getTaxonomy();
+  const niches = nicheIndex(taxonomy);
+
+  const nicheSlugs = readNiches(body.niches ?? body.category, niches, { required });
+  const language = str(body.language, 'language', 'Language', { required: false, max: 5 })?.toLowerCase();
+  if (language && !LANGUAGE_NAMES[language]) throw new ValidationError('Choose a language from the list', 'language');
+  const country = str(body.country, 'country', 'Main country', { required: false, max: 2 })?.toLowerCase();
+  if (country && !/^[a-z]{2}$/.test(country)) throw new ValidationError('Main country must be a 2-letter country code', 'country');
+
+  const allowedIn = body.allowed && typeof body.allowed === 'object' ? body.allowed : body;
+  const allowed = {};
+  RESTRICTED_TOPICS.forEach(({ key, label }) => {
+    const v = flag(allowedIn[key], key, label);
+    if (v !== undefined) allowed[key] = v;
+  });
+
+  const address = partial ? undefined : urlField(body.url, 'url', 'Website URL');
   const fields = {
-    url: partial ? undefined : urlField(body.url, 'url', 'Website URL'),
-    category: str(body.category, 'category', 'Category', { required, max: 60 }),
-    price: num(body.price, 'price', 'Price', { required, min: 1, max: MAX_PRICE }),
+    url: address,
+    domain: address ? hostOf(address) : undefined,
+    niches: nicheSlugs,
+    category: nicheSlugs ? niches.get(nicheSlugs[0]).name : undefined,
+    description: str(body.description, 'description', 'Description', { required: false, max: 1000 }),
+
+    price: num(body.price, 'price', 'Guest post price', { required, min: 1, max: MAX_PRICE }),
+    linkInsertionPrice: num(body.linkInsertionPrice, 'linkInsertionPrice', 'Link insertion price', { required: false, min: 0, max: MAX_PRICE }),
     da: num(body.da, 'da', 'DA', { required: false, min: 0, max: 100, integer: true }),
-    traffic: num(body.traffic, 'traffic', 'Traffic', { required: false, min: 0, max: MAX_TRAFFIC, integer: true }),
+    dr: num(body.dr, 'dr', 'DR', { required: false, min: 0, max: 100, integer: true }),
+    authorityScore: num(body.authorityScore ?? body.as, 'authorityScore', 'Authority Score', { required: false, min: 0, max: 100, integer: true }),
+    traffic: intField(body.traffic, 'traffic', 'Ahrefs traffic'),
+    semrushTraffic: intField(body.semrushTraffic, 'semrushTraffic', 'Semrush traffic'),
+    keywords: intField(body.keywords, 'keywords', 'Organic keywords'),
+
+    language,
+    country,
+    topCountries: readTopCountries(body.topCountries),
+
+    linkType: enumField(body.linkType, 'linkType', 'Link type', LINK_TYPES),
+    linkValidity: enumField(body.linkValidity, 'linkValidity', 'Link validity', LINK_VALIDITY),
+    linksPerPost: num(body.linksPerPost, 'linksPerPost', 'Links per post', { required: false, min: 1, max: MAX_LINKS_PER_POST, integer: true }),
+    googleNews: flag(body.googleNews, 'googleNews', 'Google News'),
+    markedSponsored: flag(body.markedSponsored, 'markedSponsored', 'Marked as sponsored'),
+    acceptsSitewide: flag(body.acceptsSitewide, 'acceptsSitewide', 'Sidebar / footer links'),
+    acceptsForeignLanguage: flag(body.acceptsForeignLanguage, 'acceptsForeignLanguage', 'Other languages'),
+
+    turnaroundDays: num(body.turnaroundDays, 'turnaroundDays', 'Turnaround', { required: false, min: 0, max: 60, integer: true }),
+    sampleUrls: readSampleUrls(body.sampleUrls),
+    contentRules: str(body.contentRules, 'contentRules', 'Content rules', { required: false, max: 2000 }),
   };
-  return Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined));
+  const cleaned = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined));
+  // In an edit, an emptied optional field clears the saved value.
+  if (partial) {
+    ['linkInsertionPrice', 'description', 'contentRules', 'country'].forEach((key) => {
+      if (body[key] === '' || body[key] === null) cleaned[key] = null;
+    });
+  }
+  // Partial edits only touch the topics that were sent.
+  Object.entries(allowed).forEach(([key, v]) => { cleaned[`allowed.${key}`] = v; });
+  return cleaned;
+};
+
+// A CSV row (lower-case headers) in the shape readListingFields expects.
+const csvRowToBody = (row) => ({
+  url: row.url || row.website,
+  niches: row.niches || row.niche || row.category || 'General',
+  price: row.price || row.guest_post_price,
+  linkInsertionPrice: row.link_insertion_price,
+  da: row.da,
+  dr: row.dr,
+  authorityScore: row.as || row.authority_score,
+  traffic: row.ahrefs_traffic || row.traffic,
+  semrushTraffic: row.semrush_traffic,
+  keywords: row.keywords || row.ahrefs_keywords,
+  language: row.language,
+  country: row.country,
+  topCountries: row.top_countries,
+  linkType: row.link_type,
+  linkValidity: row.link_validity,
+  linksPerPost: row.links_per_post,
+  googleNews: row.google_news,
+  markedSponsored: row.sponsored || row.marked_sponsored,
+  acceptsSitewide: row.sitewide,
+  acceptsForeignLanguage: row.foreign_language,
+  casino: row.casino,
+  cbd: row.cbd,
+  crypto: row.crypto,
+  pharmacy: row.pharmacy,
+  sports: row.sports,
+  turnaroundDays: row.turnaround_days,
+  sampleUrls: row.sample_urls,
+  contentRules: row.content_rules,
+});
+
+// Dotted "allowed.casino" keys -> a nested object, for create/insertMany.
+const nest = (fields) => {
+  const out = {};
+  Object.entries(fields).forEach(([key, value]) => {
+    if (key.startsWith('allowed.')) {
+      out.allowed = out.allowed || {};
+      out.allowed[key.slice(8)] = value;
+    } else {
+      out[key] = value;
+    }
+  });
+  return out;
 };
 
 const hostOf = (address) => new URL(address).hostname.replace(/^www\./, '').toLowerCase();
@@ -46,14 +225,12 @@ const findOwnDuplicate = async (sellerId, address) => {
 
 export const createListing = async (request, params, user) => {
   try {
-    const fields = readListingFields(await readBody(request));
+    const fields = nest(await readListingFields(await readBody(request)));
     if (await findOwnDuplicate(user.id, fields.url)) {
       return json({ message: 'You have already listed this website.', field: 'url' }, 400);
     }
     const listing = await Listing.create({
       seller: user.id,
-      da: 0,
-      traffic: 0,
       ...fields,
       status: 'pending',
     });
@@ -63,57 +240,50 @@ export const createListing = async (request, params, user) => {
   }
 };
 
-const SORTS = {
-  default: { isFeatured: -1, createdAt: -1 },
-  price_asc: { price: 1, _id: 1 },
-  price_desc: { price: -1, _id: 1 },
-  da_desc: { da: -1, _id: 1 },
-  traffic_desc: { traffic: -1, _id: 1 },
-};
-
-const range = (min, max, label, { integer = true } = {}) => {
-  const lo = num(min, `min${label}`, `Minimum ${label}`, { required: false, min: 0, integer });
-  const hi = num(max, `max${label}`, `Maximum ${label}`, { required: false, min: 0, integer });
-  if (lo === undefined && hi === undefined) return undefined;
-  const r = {};
-  if (lo !== undefined) r.$gte = lo;
-  if (hi !== undefined) r.$lte = hi;
-  return r;
-};
-
-// GET /api/listings: the public marketplace, 25 per page by default.
+// GET /api/listings: the public marketplace, 25 per page by default. Takes
+// the same filters as the /sites pages (see listingSearch.js).
 export const getListings = async (request) => {
   try {
     const q = queryParams(request);
-    const paging = getPaging(request, { defaultLimit: 25, maxLimit: 100 });
+    const { page, limit } = getPaging(request, { defaultLimit: 25, maxLimit: 100 });
+    return json(await searchListings(q, { page, limit }));
+  } catch (error) {
+    return serverError(error);
+  }
+};
 
-    const query = { status: 'approved', ...notDeleted };
+const EXPORT_LIMIT = 5000;
+const csvCell = (value) => {
+  const text = value === undefined || value === null ? '' : String(value);
+  // Quote, and stop spreadsheets from running cells that start with = + - @.
+  const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+  return /[",\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+};
 
-    // Listings of suspended sellers are hidden from the marketplace.
-    const suspendedSellers = await User.find({ isSuspended: true }).distinct('_id');
-    if (suspendedSellers.length) query.seller = { $nin: suspendedSellers };
-
-    const search = str(q.search, 'search', 'Search', { required: false, max: 100 });
-    if (search) query.url = { $regex: escapeRegex(search), $options: 'i' };
-
-    const category = str(q.category, 'category', 'Category', { required: false, max: 60 });
-    if (category && category !== 'All') query.category = category;
-
-    const da = range(q.minDA, q.maxDA, 'DA');
-    if (da) query.da = da;
-    const traffic = range(q.minTraffic, q.maxTraffic, 'Traffic');
-    if (traffic) query.traffic = traffic;
-    const price = range(q.minPrice, q.maxPrice, 'Price', { integer: false });
-    if (price) query.price = price;
-
-    const sort = SORTS[q.sort] || SORTS.default;
-
-    const [listings, total] = await Promise.all([
-      Listing.find(query).populate('seller', 'name').sort(sort).skip(paging.skip).limit(paging.limit),
-      Listing.countDocuments(query),
-    ]);
-
-    return json({ listings, ...pageInfo(total, paging) });
+// GET /api/listings/export: the current search as a CSV file (signed-in users).
+export const exportListings = async (request) => {
+  try {
+    const q = queryParams(request);
+    const query = await buildListingQuery(q);
+    const rows = await Listing.find(query).select(PUBLIC_FIELDS).sort(parseSort(q.sort)).limit(EXPORT_LIMIT).lean();
+    const header = ['Website', 'Niches', 'Language', 'Country', 'DR', 'DA', 'AS', 'Ahrefs traffic', 'Ahrefs keywords',
+      'Semrush traffic', 'Top countries', 'Link type', 'Link validity', 'Links per post', 'Google News',
+      'Marked sponsored', 'Turnaround days', 'Guest post price', 'Link insertion price'];
+    const lines = rows.map((l) => [
+      l.domain || l.url, (l.niches || []).join(' | '), l.language, l.country, l.dr, l.da, l.authorityScore,
+      l.traffic, l.keywords, l.semrushTraffic,
+      (l.topCountries || []).map((c) => `${c.code.toUpperCase()} ${c.share}%`).join(' | '),
+      l.linkType, l.linkValidity, l.linksPerPost, l.googleNews ? 'yes' : 'no', l.markedSponsored ? 'yes' : 'no',
+      l.turnaroundDays, l.price, l.linkInsertionPrice ?? '',
+    ].map(csvCell).join(','));
+    const body = [header.join(','), ...lines].join('\r\n');
+    return new Response(body, {
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': 'attachment; filename="publishers.csv"',
+        'Cache-Control': 'no-store',
+      },
+    });
   } catch (error) {
     return serverError(error);
   }
@@ -257,12 +427,12 @@ export const bulkUploadListings = async (request, params, user) => {
     for (let i = 0; i < rows.length; i += 1) {
       const rowNumber = i + 2; // row 1 is the header
       try {
-        const fields = readListingFields({ ...rows[i], category: rows[i].category || 'General' });
+        const fields = nest(await readListingFields(csvRowToBody(rows[i])));
         const host = hostOf(fields.url);
         if (seenHosts.has(host)) throw new ValidationError('This website appears twice in the file', 'url');
         if (await findOwnDuplicate(user.id, fields.url)) throw new ValidationError('You have already listed this website', 'url');
         seenHosts.add(host);
-        valid.push({ seller: user.id, da: 0, traffic: 0, ...fields, status: 'pending' });
+        valid.push({ seller: user.id, ...fields, status: 'pending' });
       } catch (error) {
         if (!(error instanceof ValidationError)) throw error;
         errors.push({ row: rowNumber, url: rows[i].url || '', message: error.message });
@@ -308,8 +478,7 @@ export const updateListing = async (request, params, user) => {
       return json({ message: 'Not authorized to edit this listing' }, 403);
     }
 
-    const fields = readListingFields(await readBody(request), { partial: true });
-    Object.assign(listing, fields);
+    listing.set(await readListingFields(await readBody(request), { partial: true }));
 
     // A seller's edit goes back to "pending" so an admin re-checks the new
     // metrics and price.
@@ -327,10 +496,13 @@ export const updateListing = async (request, params, user) => {
   }
 };
 
-export const getListingById = async (request, params) => {
+export const getListingById = async (request, params, user) => {
   try {
-    const listing = await findLiveListing(params.id).populate('seller', 'name email');
+    const listing = await findLiveListing(params.id).populate('seller', 'name email').lean();
     if (!listing) return json({ message: 'Listing not found' }, 404);
+    // Only the owner and admins see the seller's email.
+    const isOwner = String(listing.seller?._id) === String(user?.id);
+    if (!isOwner && user?.role !== 'admin' && listing.seller) delete listing.seller.email;
     return json(listing);
   } catch (error) {
     return serverError(error);

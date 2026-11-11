@@ -109,7 +109,7 @@ const AuthorityRoots = () => {
             </p>
 
             <Link 
-              href="/marketplace" 
+              href="/sites" 
               className="relative z-10 bg-blue-600 hover:bg-blue-700 text-white px-8 py-3.5 rounded-xl font-medium text-[15px] flex items-center gap-2 group shadow-xl shadow-blue-500/20 active:scale-95"
             >
               Explore Catalog 

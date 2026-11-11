@@ -7,7 +7,7 @@ import { ArrowRight, ShieldCheck, Zap, BarChart3, CheckCircle2  } from 'lucide-r
 
 const Hero = () => {
   return (
-    <section className="relative pt-32 pb-24 px-6 overflow-hidden bg-white">
+    <section className="relative pt-16 pb-24 px-6 overflow-hidden bg-white">
       {/* 1. TEXTURED BACKGROUND ELEMENTS */}
       {/* SVG Grid Pattern */}
       <div className="absolute inset-0 z-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='1'%3E%3Cpath d='M36 34v2h-2v-2h2zm0 4v2h-2v-2h2zm-4 0v2h-2v-2h2zm4-4h2v2h-2v-2zm0-4V24h2v2h-2v-2zM24 24v2h-2v-2h2zm0 4v2h-2v-2h2zm-4 0v2h-2v-2h2zm4-4h2v2h-2v-2zm0-4V12h2v2h-2v-2zM12 12v2H10v-2h2zm0 4v2H10v-2h2zm-4 0v2H8v-2h2zm4-4h2v2h-2v-2zm0-4V0h2v2h-2v-2zM0 0v2h2V0H0zm0 4v2h2V4H0zm4 0v2h2V4H4zM0 4h2v2H0V4zm0-4V0h2v2H0V0z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")` }}></div>

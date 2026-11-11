@@ -27,13 +27,13 @@ const ProtectedRoute = ({ children }) => {
   if (mounted) {
     const userInfoString = localStorage.getItem('userInfo');
     if (!userInfoString) {
-      redirect = { to: '/login', replace: false };
+      redirect = { to: `/login?next=${encodeURIComponent(pathname)}`, replace: false };
     } else {
       const userInfo = JSON.parse(userInfoString);
       const allowedRoles = allowedRolesFor(pathname);
       // RBAC Check: If specific roles are required and user doesn't have them
       if (allowedRoles.length > 0 && !allowedRoles.includes(userInfo.role)) {
-        redirect = { to: '/marketplace', replace: true };
+        redirect = { to: '/sites', replace: true };
       }
     }
   }

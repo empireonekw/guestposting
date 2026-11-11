@@ -10,6 +10,8 @@ import './models/Notification';
 import './models/Review';
 import './models/ActivityLog';
 import './models/JobRun';
+import './models/Niche';
+import './models/Country';
 
 // One connection per server process, shared across route handlers and
 // survives dev hot reloads.

@@ -23,7 +23,9 @@ const Login = () => {
     try {
       const { data } = await api.post('/auth/login', formData);
       localStorage.setItem('userInfo', JSON.stringify(data));
-      router.push('/marketplace');
+      // Return to the page that sent the user here (only paths on this site).
+      const next = new URLSearchParams(window.location.search).get('next');
+      router.push(next && next.startsWith('/') && !next.startsWith('//') ? next : '/sites');
     } catch (err) {
       setError(err.response?.data?.message || 'Invalid email or password');
       setLoading(false);

@@ -1,5 +1,27 @@
 import mongoose from 'mongoose';
 
+// Field names kept from before Module 1 so existing screens and orders keep
+// working: `price` is the guest post price, `da` is Moz DA and `traffic` is
+// Ahrefs organic traffic. `category` is the old single niche; new listings
+// fill it with their first niche's name.
+
+const topCountrySchema = new mongoose.Schema(
+  {
+    code: { type: String, lowercase: true, maxlength: 2 },
+    share: { type: Number, min: 0, max: 100 },
+  },
+  { _id: false },
+);
+
+const trafficPointSchema = new mongoose.Schema(
+  {
+    month: { type: Date },
+    ahrefs: { type: Number, min: 0 },
+    semrush: { type: Number, min: 0 },
+  },
+  { _id: false },
+);
+
 const listingSchema = new mongoose.Schema(
   {
     seller: {
@@ -8,16 +30,55 @@ const listingSchema = new mongoose.Schema(
       required: true,
     },
     url: { type: String, required: true },
-    category: { type: String, required: true },
+    // Bare host name ("example.com"): used for search, sorting and the
+    // /sites/<domain> page.
+    domain: { type: String, lowercase: true, trim: true },
+    category: { type: String },
+    niches: { type: [String], default: [] },
+    description: { type: String, maxlength: 1000 },
+
+    // Metrics
     price: { type: Number, required: true },
-    da: { type: Number, required: true },
-    traffic: { type: Number, required: true },
+    da: { type: Number, default: 0 },
+    dr: { type: Number, default: 0 },
+    authorityScore: { type: Number, default: 0 },
+    traffic: { type: Number, default: 0 },
+    semrushTraffic: { type: Number, default: 0 },
+    keywords: { type: Number, default: 0 },
+    trafficHistory: { type: [trafficPointSchema], default: [] },
+
+    // Location
+    language: { type: String, lowercase: true, maxlength: 5 },
+    country: { type: String, lowercase: true, maxlength: 2 },
+    topCountries: { type: [topCountrySchema], default: [] },
+
+    // Link details
+    linkType: { type: String, enum: ['dofollow', 'nofollow'], default: 'dofollow' },
+    linkValidity: { type: String, enum: ['permanent', '24m', '12m', '6m'], default: 'permanent' },
+    linksPerPost: { type: Number, default: 1, min: 1 },
+    googleNews: { type: Boolean, default: false },
+    markedSponsored: { type: Boolean, default: false },
+    acceptsSitewide: { type: Boolean, default: false },
+    acceptsForeignLanguage: { type: Boolean, default: false },
+    allowed: {
+      casino: { type: Boolean, default: false },
+      cbd: { type: Boolean, default: false },
+      crypto: { type: Boolean, default: false },
+      pharmacy: { type: Boolean, default: false },
+      sports: { type: Boolean, default: false },
+    },
+
+    // Prices and timing
+    linkInsertionPrice: { type: Number, min: 0 },
+    turnaroundDays: { type: Number, min: 0, default: 3 },
+    sampleUrls: { type: [String], default: [] },
+    contentRules: { type: String, maxlength: 2000 },
+
     status: {
       type: String,
       enum: ["pending", "approved", "rejected"],
       default: "pending",
     },
-    // NEW FIELDS
     isVerified: { type: Boolean, default: false },
     isFeatured: { type: Boolean, default: false },
     featuredUntil: { type: Date },
@@ -32,10 +93,30 @@ const listingSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+listingSchema.pre('save', function fillDerived() {
+  if (this.isModified('url') || !this.domain) {
+    try {
+      this.domain = new URL(/^https?:\/\//i.test(this.url) ? this.url : `https://${this.url}`).hostname
+        .replace(/^www\./, '')
+        .toLowerCase();
+    } catch {
+      // url is validated before saving; leave domain empty if it is odd.
+    }
+  }
+});
+
 // Marketplace query: approved, not deleted, featured first then newest.
 listingSchema.index({ status: 1, isDeleted: 1, isFeatured: -1, createdAt: -1 });
 listingSchema.index({ status: 1, isDeleted: 1, price: 1 });
 listingSchema.index({ status: 1, isDeleted: 1, category: 1 });
+// Module 1 filters and sorts.
+listingSchema.index({ status: 1, isDeleted: 1, niches: 1 });
+listingSchema.index({ status: 1, isDeleted: 1, country: 1 });
+listingSchema.index({ status: 1, isDeleted: 1, 'topCountries.code': 1 });
+listingSchema.index({ status: 1, isDeleted: 1, language: 1 });
+listingSchema.index({ status: 1, isDeleted: 1, traffic: -1 });
+listingSchema.index({ status: 1, isDeleted: 1, dr: -1 });
+listingSchema.index({ domain: 1 });
 // A seller's own listings, and duplicate checks.
 listingSchema.index({ seller: 1, isDeleted: 1, createdAt: -1 });
 listingSchema.index({ url: 1 });
