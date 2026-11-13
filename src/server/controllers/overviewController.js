@@ -57,8 +57,8 @@ export const getOverview = async (request) => {
       statusRows, roleRows, pending, flagged, unchecked, stale, verified,
       seriesNow, seriesPrev, recentOrders, recentPending,
     ] = await Promise.all([
-      sumOrders({ status: 'published' }, start, end),
-      sumOrders({ status: 'published' }, prevStart, start),
+      sumOrders({ status: 'completed' }, start, end),
+      sumOrders({ status: 'completed' }, prevStart, start),
       sumOrders(notCancelled, start, end),
       sumOrders(notCancelled, prevStart, start),
       countIn(User, {}, start, end),

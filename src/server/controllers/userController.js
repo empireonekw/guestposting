@@ -14,9 +14,9 @@ export const getUserProfile = async (request, params, authUser) => {
 
     const stats = {
       totalOrders: orders.length,
-      completedOrders: orders.filter(o => o.status === 'published').length,
+      completedOrders: orders.filter(o => o.status === 'completed').length,
       totalVolume: orders
-        .filter(o => o.status === 'published')
+        .filter(o => o.status === 'completed')
         .reduce((acc, curr) => acc + curr.price, 0)
     };
 

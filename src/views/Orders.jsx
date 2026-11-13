@@ -1,187 +1,128 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { ShoppingBag, Loader2, ChevronRight, Clock } from 'lucide-react';
 import api from '@/lib/api';
+import useSession from '@/lib/useSession';
 import Pagination from '@/components/Pagination';
-import { 
-  ShoppingBag, ArrowLeft, Clock, Activity, CheckCircle2, 
-  XCircle, Loader2, ChevronRight, Search 
-} from 'lucide-react';
+import Badge from '@/components/ui/Badge';
+import Button from '@/components/ui/Button';
+import { STATUS_LABEL, STATUS_TONE } from '@/data/orderStatus';
+import { money } from '@/lib/format';
+
+// "My orders" for buyers and "My sales" for sellers.
+
+const FILTERS = [
+  { key: 'action', label: 'Your turn' },
+  { key: 'open', label: 'Open' },
+  { key: 'completed', label: 'Completed' },
+  { key: 'cancelled', label: 'Cancelled' },
+  { key: 'all', label: 'All' },
+];
+
+const short = (d) => (d ? new Date(d).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) : '');
+
+// The one date that matters for this order right now.
+const dueText = (o) => {
+  if (o.status === 'pending_acceptance' && o.acceptBy) return `Accept by ${short(o.acceptBy)}`;
+  if (o.status === 'writing' && o.dueAt) return `${o.late ? 'Was due' : 'Due'} ${short(o.dueAt)}`;
+  if (o.status === 'published' && o.reviewBy) return `Auto-approves ${short(o.reviewBy)}`;
+  return '';
+};
 
 const Orders = () => {
-  const [orders, setOrders] = useState([]);
-  const [paging, setPaging] = useState({ page: 1, pages: 1, total: 0, limit: 25 });
+  const { user } = useSession();
+  const role = user?.role === 'seller' ? 'seller' : 'buyer';
+  const [filter, setFilter] = useState('open');
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState(null);
   const [error, setError] = useState('');
-  const router = useRouter();
+  const seq = useRef(0);
 
-  const userInfo = JSON.parse(localStorage.getItem('userInfo'));
-  const role = userInfo?.role;
-
-  // Keyed on the role string: userInfo is a fresh object every render, and
-  // depending on it re-ran this effect after every fetch (an endless request loop).
   useEffect(() => {
-    const fetchOrders = async () => {
-      setLoading(true);
-      try {
-        const endpoint = role === 'seller' ? '/orders/mysales' : '/orders/myorders';
-        const { data } = await api.get(`${endpoint}?page=${page}`);
-        setOrders(data.orders);
-        setPaging({ page: data.page, pages: data.pages, total: data.total, limit: data.limit });
-      } catch (err) {
-        setError('Failed to load orders.');
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (!user) return;
+    const n = ++seq.current;
+    const endpoint = role === 'seller' ? '/orders/mysales' : '/orders/myorders';
+    api.get(`${endpoint}?status=${filter}&page=${page}`)
+      .then(({ data: d }) => { if (n === seq.current) { setData(d); setError(''); } })
+      .catch(() => { if (n === seq.current) setError('Could not load your orders.'); });
+  }, [user, role, filter, page]);
 
-    if (role) {
-      fetchOrders();
-    } else {
-      router.push('/login');
-    }
-  }, [role, router, page]);
+  useEffect(() => { setPage(1); }, [filter]);
 
-  const renderStatusBadge = (status) => {
-    const baseClasses = "inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] rounded-full font-semibold uppercase tracking-wide border";
-    
-    switch (status) {
-      case 'awaiting_content':
-        return <span className={`${baseClasses} bg-amber-50 text-amber-700 border-amber-100`}><Clock size={12}/> Awaiting Brief</span>;
-      case 'in_progress':
-        return <span className={`${baseClasses} bg-blue-50 text-blue-700 border-blue-100`}><Activity size={12}/> Processing</span>;
-      case 'published':
-        return <span className={`${baseClasses} bg-emerald-50 text-emerald-700 border-emerald-100`}><CheckCircle2 size={12}/> Delivered</span>;
-      case 'cancelled':
-        return <span className={`${baseClasses} bg-red-50 text-red-700 border-red-100`}><XCircle size={12}/> Cancelled</span>;
-      default:
-        return <span className={`${baseClasses} bg-slate-50 text-slate-700 border-slate-100`}>{status}</span>;
-    }
-  };
+  const other = role === 'seller' ? 'buyer' : 'seller';
 
   return (
-    <div className="max-w-6xl mx-auto pb-20 py-8 px-4 sm:px-6">
-      
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8 border-b border-slate-200 pb-6">
+    <div className="mx-auto max-w-6xl pb-20">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <Link href="/" className="inline-flex items-center text-[13px] font-medium text-slate-500 hover:text-blue-600 mb-3 transition-colors">
-            <ArrowLeft size={16} className="mr-1.5" /> Back to Marketplace
-          </Link>
-          <h1 className="text-2xl font-semibold text-slate-900 tracking-tight flex items-center gap-3">
-            <ShoppingBag className="text-blue-600" size={24} /> 
-            {userInfo?.role === 'seller' ? 'Order Management' : 'Purchase History'}
-          </h1>
-          <p className="text-[14px] text-slate-500 mt-1 font-medium">
-            {userInfo?.role === 'seller' 
-              ? 'Track and fulfill incoming guest post requests.' 
-              : 'Monitor the status of your active SEO placements.'}
+          <h1 className="text-2xl font-semibold tracking-tight text-ink">{role === 'seller' ? 'My sales' : 'My orders'}</h1>
+          <p className="mt-1 text-[14px] text-ink-soft">
+            {role === 'seller' ? 'Orders for your websites: accept them, publish, and send the live link.' : 'Your guest post orders and where each one stands.'}
           </p>
         </div>
+        {role === 'buyer' && <Button href="/sites" variant="secondary">Find more sites</Button>}
       </div>
 
-      {/* Main Table Card */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[900px]">
-            <thead>
-              <tr className="bg-slate-50/80 border-b border-slate-100 text-[12px] font-semibold text-slate-500 uppercase tracking-wider">
-                <th className="p-4 pl-6">Purchase Date</th>
-                <th className="p-4">Target Listing</th>
-                <th className="p-4">{userInfo?.role === 'seller' ? 'Client' : 'Publisher'}</th>
-                <th className="p-4">Price</th>
-                <th className="p-4">Workflow Status</th>
-                <th className="p-4 text-right pr-6">Management</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {loading ? (
-                /* SKELETON TABLE LOADER */
-                [...Array(5)].map((_, i) => (
-                  <tr key={i} className="animate-pulse">
-                    <td className="p-4 pl-6"><div className="h-4 bg-slate-100 rounded w-24"></div></td>
-                    <td className="p-4"><div className="h-4 bg-slate-100 rounded w-40 mb-1.5"></div><div className="h-3 bg-slate-50 rounded w-20"></div></td>
-                    <td className="p-4"><div className="h-4 bg-slate-100 rounded w-32"></div></td>
-                    <td className="p-4"><div className="h-4 bg-slate-100 rounded w-16"></div></td>
-                    <td className="p-4"><div className="h-6 bg-slate-100 rounded-full w-24"></div></td>
-                    <td className="p-4 text-right pr-6"><div className="h-8 bg-slate-100 rounded-lg w-24 ml-auto"></div></td>
-                  </tr>
-                ))
-              ) : error ? (
-                <tr>
-                  <td colSpan="6" className="p-12 text-center">
-                    <div className="inline-flex items-center gap-2 text-red-600 bg-red-50 px-4 py-2 rounded-lg border border-red-100 font-medium text-sm">
-                      <XCircle size={16} /> {error}
-                    </div>
-                  </td>
-                </tr>
-              ) : orders.length === 0 ? (
-                <tr>
-                  <td colSpan="6" className="p-20 text-center">
-                    <div className="flex flex-col items-center gap-3 opacity-40">
-                      <Search size={48} strokeWidth={1} className="text-slate-400" />
-                      <p className="font-semibold text-slate-500">No transactions found.</p>
-                      {userInfo?.role !== 'seller' && (
-                        <Link href="/" className="text-blue-600 hover:text-blue-700 font-semibold text-sm">
-                          Browse available domains
-                        </Link>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                orders.map((order) => (
-                  <tr key={order._id} className="hover:bg-slate-50/50 transition-colors group">
-                    <td className="p-4 pl-6">
-                      <span className="text-slate-600 font-medium text-[13px]">
-                        {new Date(order.createdAt).toLocaleDateString(undefined, { 
-                          year: 'numeric', month: 'short', day: 'numeric' 
-                        })}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      <div className="font-semibold text-slate-900 text-[14px]">{order.listing?.url}</div>
-                      <div className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">{order.listing?.category}</div>
-                    </td>
-                    <td className="p-4">
-                      <div className="text-slate-600 text-[13px] font-medium flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[10px] text-slate-500 font-bold">
-                          {(userInfo?.role === 'seller' ? order.buyer?.email : order.seller?.email).charAt(0).toUpperCase()}
-                        </div>
-                        {userInfo?.role === 'seller' ? order.buyer?.email : order.seller?.email}
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      <span className="font-bold text-slate-900 text-[15px]">
-                        ${order.price.toLocaleString()}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      {renderStatusBadge(order.status)}
-                    </td>
-                    <td className="p-4 pr-6 text-right">
-                      <button 
-                        onClick={() => router.push(`/orders/${order._id}`)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold text-blue-600 hover:bg-blue-50 transition-all group-hover:translate-x-[-4px]"
-                      >
-                        Details
-                        <ChevronRight size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+      <section className="overflow-hidden rounded-2xl border border-line bg-white shadow-[var(--shadow-card)]">
+        <div className="flex flex-wrap gap-1 border-b border-line px-4 py-3 sm:px-6" role="tablist">
+          {FILTERS.map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              role="tab"
+              aria-selected={filter === f.key}
+              onClick={() => setFilter(f.key)}
+              className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-[13px] font-medium ${filter === f.key ? 'bg-brand-50 text-brand-800' : 'text-ink-soft hover:bg-line-soft hover:text-ink'}`}
+            >
+              {f.label}
+              {f.key === 'action' && data?.actionCount > 0 && <span className="rounded-full bg-brand-600 px-1.5 text-[11px] font-semibold text-white">{data.actionCount}</span>}
+            </button>
+          ))}
         </div>
-      </div>
 
-      {!loading && !error && (
-        <Pagination page={paging.page} pages={paging.pages} total={paging.total} limit={paging.limit} onChange={setPage} label="orders" />
-      )}
+        {error ? (
+          <p className="p-12 text-center text-[14px] text-danger">{error}</p>
+        ) : !data ? (
+          <div className="p-16 text-center"><Loader2 size={24} className="mx-auto animate-spin text-brand-500" /></div>
+        ) : data.orders.length === 0 ? (
+          <div className="p-16 text-center text-ink-faint">
+            <ShoppingBag size={32} className="mx-auto mb-3 opacity-50" strokeWidth={1.5} />
+            <p className="text-[14px] font-medium">{filter === 'action' ? 'Nothing needs you right now.' : 'No orders here.'}</p>
+          </div>
+        ) : (
+          <ul className="divide-y divide-line">
+            {data.orders.map((o) => (
+              <li key={o._id}>
+                <Link href={`/orders/${o._id}`} className={`flex items-center gap-4 px-4 py-4 hover:bg-canvas sm:px-6 ${o.yourTurn ? 'bg-brand-50/40' : ''}`}>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="truncate text-[14px] font-semibold text-ink">{o.site?.domain || o.listing?.domain || 'Website'}</span>
+                      <Badge tone={STATUS_TONE[o.status]}>{STATUS_LABEL[o.status] || o.status}</Badge>
+                      {o.late && <Badge tone="warning"><Clock size={11} /> Late</Badge>}
+                      {o.yourTurn && <Badge tone="brand">Your turn</Badge>}
+                    </div>
+                    <p className="mt-1 text-[12px] text-ink-faint">
+                      #{String(o._id).slice(-6).toUpperCase()} · {short(o.createdAt)}
+                      {o[other]?.name ? ` · ${other === 'seller' ? 'publisher' : 'buyer'} ${o[other].name}` : ''}
+                      {dueText(o) ? ` · ${dueText(o)}` : ''}
+                    </p>
+                  </div>
+                  <span className="text-[15px] font-semibold tabular-nums text-ink">{money(o.price)}</span>
+                  <ChevronRight size={16} className="shrink-0 text-ink-faint" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {data && (
+          <div className="border-t border-line px-6">
+            <Pagination page={data.page} pages={data.pages} total={data.total} limit={data.limit} onChange={setPage} label="orders" />
+          </div>
+        )}
+      </section>
     </div>
   );
 };

@@ -21,7 +21,8 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 403 && error.response.data?.suspended) {
+    const data = error.response?.data;
+    if ((error.response?.status === 403 && data?.suspended) || (error.response?.status === 401 && data?.sessionEnded)) {
       localStorage.removeItem('userInfo');
       window.location.href = '/login';
     }

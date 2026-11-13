@@ -14,13 +14,8 @@ const sweep = (now) => {
   }
 };
 
-// The app listens on 127.0.0.1 behind nginx and Cloudflare, so the client
-// address comes from the proxy headers.
-export const clientIp = (request) =>
-  request.headers.get('cf-connecting-ip') ||
-  request.headers.get('x-real-ip') ||
-  (request.headers.get('x-forwarded-for') || '').split(',')[0].trim() ||
-  'local';
+// Where a request comes from (see clientIp.js).
+export { clientIp } from './clientIp';
 
 // Counts one hit for `key` under `name`. Returns a 429 response once the
 // limit is passed within the window, otherwise null.

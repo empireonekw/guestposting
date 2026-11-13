@@ -17,6 +17,7 @@ import {
   MAX_NICHES, MAX_LINKS_PER_POST, MAX_SAMPLE_URLS,
 } from '@/data/listingOptions';
 import { slugify } from '@/data/niches';
+import { OPEN_STATUSES } from '@/data/orderStatus';
 
 // Deleted listings are kept for order history but hidden everywhere else.
 const notDeleted = { isDeleted: { $ne: true } };
@@ -567,10 +568,17 @@ export const getListingById = async (request, params, user) => {
   try {
     const listing = await findLiveListing(params.id).populate('seller', 'name email').lean();
     if (!listing) return json({ message: 'Listing not found' }, 404);
-    // Only the owner and admins see the seller's email.
+    // The owner and admins see everything. Anyone else only sees a live
+    // listing's public fields (no seller email, seller numbers, flags or notes).
     const isOwner = String(listing.seller?._id) === String(user?.id);
-    if (!isOwner && user?.role !== 'admin' && listing.seller) delete listing.seller.email;
-    return json(listing);
+    if (isOwner || user?.role === 'admin') return json(listing);
+    if (listing.status !== 'approved') return json({ message: 'Listing not found' }, 404);
+    const keep = new Set(['_id', ...PUBLIC_FIELDS.split(' ').map((f) => f.split('.')[0])]);
+    const shown = Object.fromEntries(Object.entries(listing).filter(([k]) => keep.has(k)));
+    shown.seller = listing.seller ? { _id: listing.seller._id, name: listing.seller.name } : null;
+    shown.metrics = { source: listing.metrics?.source, updatedAt: listing.metrics?.updatedAt };
+    shown.verification = { verifiedAt: listing.verification?.verifiedAt };
+    return json(shown);
   } catch (error) {
     return serverError(error);
   }
@@ -588,7 +596,7 @@ export const deleteListing = async (request, params, user) => {
 
     const openOrders = await Order.countDocuments({
       listing: listing._id,
-      status: { $in: ['awaiting_content', 'in_progress'] },
+      status: { $in: OPEN_STATUSES },
     });
     if (openOrders > 0) {
       return json({ message: 'This website has open orders. Complete or reject them before deleting it.' }, 400);

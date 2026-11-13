@@ -15,6 +15,10 @@ export const protect = async (request) => {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       const user = await User.findById(decoded.id).select('-password');
       if (!user) throw new Error('User not found');
+      // A password reset ends every login made before it.
+      if ((decoded.v ?? 0) !== (user.tokenVersion ?? 0)) {
+        return { error: json({ message: 'Your session has ended. Please sign in again.', sessionEnded: true }, 401) };
+      }
       if (user.isSuspended) {
         return { error: json({ message: 'Your account has been suspended.', suspended: true }, 403) };
       }
@@ -57,8 +61,8 @@ export const withAuth = (handler, ...checks) =>
     return handler(request, params, user);
   });
 
-export const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
+export const generateToken = (id, version = 0) => {
+  return jwt.sign({ id, v: version }, process.env.JWT_SECRET, {
     expiresIn: '30d',
   });
 };

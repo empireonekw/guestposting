@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { STATUS_LABEL } from '@/data/orderStatus';
 import {
   ArrowUpRight, Calendar, Info, Clock, AlertTriangle, ClipboardCheck, CalendarClock, ChevronRight, ShoppingBag,
 } from 'lucide-react';
@@ -66,7 +67,7 @@ const ago = (d) => {
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
-const STATUS_TEXT = { awaiting_content: 'Awaiting brief', in_progress: 'In progress', published: 'Published', cancelled: 'Cancelled' };
+const STATUS_TEXT = STATUS_LABEL;
 
 const AdminOverview = () => {
   const [days, setDays] = useState(30);
@@ -179,7 +180,7 @@ const AdminOverview = () => {
             <section className="rounded-3xl border border-line bg-white p-6 shadow-[var(--shadow-card)]">
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-ink">Recent orders</h2>
-                <Link href="/orders" className="text-[13px] font-semibold text-brand-700 hover:underline">All orders</Link>
+                <Link href="/admin/orders" className="text-[13px] font-semibold text-brand-700 hover:underline">All orders</Link>
               </div>
               {data.recentOrders.length === 0 ? (
                 <p className="flex flex-col items-center gap-2 py-10 text-center text-sm text-ink-faint"><ShoppingBag size={22} /> No orders yet.</p>

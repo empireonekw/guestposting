@@ -7,7 +7,7 @@ import api from '@/lib/api';
 import {
   LayoutGrid, History, Layers, PlusSquare, Globe, ShoppingBag, Users, Settings, LogOut, Bell,
   Info, CheckCircle2, X, ChevronDown, PanelLeftClose, PanelLeftOpen, Menu, ArrowUpRight, Plus, ClipboardCheck,
-  MessageSquare, Code2, Tags,
+  MessageSquare, Code2, Tags, Link2,
 } from 'lucide-react';
 import BRAND from '@/data/brand';
 import Logo from '@/components/ui/Logo';
@@ -31,7 +31,8 @@ const menuFor = (role) => {
         { name: 'Niches & countries', icon: Tags, path: '/admin/taxonomy' },
       ] },
       { title: 'Marketplace', items: [
-        { name: 'Orders', icon: ShoppingBag, path: '/orders' },
+        { name: 'Orders', icon: ShoppingBag, path: '/admin/orders' },
+        { name: 'Link monitor', icon: Link2, path: '/admin/links' },
         { name: 'Find sites', icon: Globe, path: '/sites' },
       ] },
       { title: 'People', items: [

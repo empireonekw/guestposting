@@ -42,6 +42,9 @@ export const serverError = (error) => {
     return json({ message: first?.message || 'Invalid data' }, 400);
   }
   if (error?.code === 11000) return json({ message: 'This record already exists' }, 409);
+  if (error instanceof mongoose.Error.VersionError) {
+    return json({ message: 'This was changed a moment ago. Refresh the page and try again.' }, 409);
+  }
   console.error(error);
   const res = json({ message: 'Something went wrong. Please try again.' }, 500);
   // The real reason, for the admin Code flow page only (never sent to users).

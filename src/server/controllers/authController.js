@@ -25,7 +25,7 @@ const sessionPayload = (user) => ({
   email: user.email,
   role: user.role,
   sellerStatus: sellerStatusOf(user),
-  token: generateToken(user._id),
+  token: generateToken(user._id, user.tokenVersion || 0),
 });
 
 export const registerUser = async (request) => {
@@ -173,6 +173,8 @@ export const resetPassword = async (request) => {
     }
 
     user.password = await bcrypt.hash(newPassword, 10);
+    // Sign out every device, in case someone else had access.
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
     user.resetPasswordOtp = undefined;
     user.resetPasswordExpire = undefined;
     user.resetPasswordAttempts = 0;

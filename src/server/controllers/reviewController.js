@@ -13,7 +13,7 @@ export const createReview = async (request, params, user) => {
     const order = await Order.findById(orderId);
     if (!order) return json({ message: 'Order not found' }, 404);
 
-    if (order.status !== 'published') {
+    if (order.status !== 'completed') {
       return json({ message: 'You can only review completed orders' }, 400);
     }
     if (order.buyer.toString() !== user.id) {

@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { clientIp } from './clientIp';
 
 // In-memory request telemetry for the admin "Code flow" page: the last 15
 // minutes of requests per area of the app (pages and API groups), recent
@@ -71,7 +72,7 @@ export const recordRequest = (name, { ms, status, path, message }) => {
 export const recordHit = ({ pathname, headers }) => {
   try {
     const now = Date.now();
-    const ip = headers.get('cf-connecting-ip') || headers.get('x-real-ip') || (headers.get('x-forwarded-for') || '').split(',')[0].trim() || 'direct';
+    const ip = clientIp({ headers });
     store.hits.push({
       t: now,
       api: pathname.startsWith('/api/'),

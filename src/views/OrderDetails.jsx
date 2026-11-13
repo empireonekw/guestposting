@@ -1,406 +1,255 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter, useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
+import { ArrowLeft, ExternalLink, Loader2, CheckCircle2, AlertCircle, X, Star, Clock } from 'lucide-react';
 import api from '@/lib/api';
-import { 
-  ArrowLeft, FileText, Send, Clock, CheckCircle2, Star,
-  XCircle, ExternalLink, Link as LinkIcon, AlignLeft, Loader2, AlertCircle, X
-} from 'lucide-react';
+import useSession from '@/lib/useSession';
+import Badge from '@/components/ui/Badge';
+import Button from '@/components/ui/Button';
+import { Textarea } from '@/components/ui/Field';
+import OrderTracker from '@/components/order/OrderTracker';
+import OrderActions from '@/components/order/OrderActions';
+import OrderDispute from '@/components/order/OrderDispute';
+import OrderChat from '@/components/order/OrderChat';
+import LinkCard from '@/components/order/LinkCard';
+import { FileLink } from '@/components/order/OrderFiles';
+import { STATUS_LABEL, STATUS_TONE, WAITING_ON } from '@/data/orderStatus';
+import { money } from '@/lib/format';
 
-const OrderDetails = () => {
-  const { id } = useParams(); 
-  const router = useRouter();
-  const scrollRef = useRef();
-  
-  const [order, setOrder] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [messages, setMessages] = useState([]);
-  const [newMessage, setNewMessage] = useState('');
-  
-  const [contentData, setContentData] = useState({ 
-    targetUrl: '', anchorText: '', articleLink: '', contentNotes: ''
-  });
-  
-  const [liveLink, setLiveLink] = useState('');
+const when = (d) => (d ? new Date(d).toLocaleString('en-US', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '');
+
+const EVENT_TEXT = {
+  ordered: 'Order placed',
+  accepted: 'Publisher accepted the order',
+  brief: 'Brief sent',
+  draft: 'Draft sent for review',
+  draft_approved: 'Draft approved',
+  revision_requested: 'Changes requested on the draft',
+  published: 'Post published',
+  redelivered: 'Live link updated',
+  fix_requested: 'Fix requested',
+  extended: 'Deadline extended',
+  late: 'Deadline passed',
+  completed: 'Order completed',
+  cancelled: 'Order cancelled',
+  dispute_opened: 'Dispute opened',
+  dispute_reply: 'New message in the dispute',
+  dispute_resolved: 'Dispute decided',
+  link_lost: 'Link problem found: case opened',
+  link_fixed: 'Link restored',
+  link_escalated: 'Link not fixed in time: passed to our team',
+  link_resolved: 'Lost-link case settled',
+};
+const WHO = { buyer: 'Buyer', seller: 'Publisher', admin: 'Our team', system: 'Automatic' };
+
+const Row = ({ label, children }) => (
+  <div className="grid gap-1 py-2.5 sm:grid-cols-[150px_1fr] sm:gap-4">
+    <dt className="text-[13px] text-ink-faint">{label}</dt>
+    <dd className="min-w-0 break-words text-[14px] text-ink">{children}</dd>
+  </div>
+);
+const ExtLink = ({ href }) => (
+  <a href={href} target="_blank" rel="noopener noreferrer nofollow" className="inline-flex max-w-full items-center gap-1 text-brand-700 hover:underline">
+    <span className="truncate">{href}</span><ExternalLink size={12} className="shrink-0" />
+  </a>
+);
+
+const ReviewBox = ({ orderId, onDone }) => {
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
-  const [hasReviewed, setHasReviewed] = useState(false);
-  const [actionLoading, setActionLoading] = useState(false);
-  const [alert, setAlert] = useState({ show: false, type: '', message: '' });
-
-  const userInfo = JSON.parse(localStorage.getItem('userInfo'));
-
-  const showNotification = (type, message) => {
-    setAlert({ show: true, type, message });
-    setTimeout(() => setAlert({ show: false, type: '', message: '' }), 5000);
-  };
-
-  useEffect(() => {
-    const init = async () => {
-      try {
-        const { data: o } = await api.get(`/orders/${id}`);
-        setOrder(o);
-        const { data: m } = await api.get(`/messages/${id}`);
-        setMessages(m);
-        
-        if (o.status === 'published') {
-          try {
-            const { data: reviews } = await api.get(`/reviews/seller/${o.seller._id}`);
-            if (reviews.find(r => r.order === id)) setHasReviewed(true);
-          } catch (err) { console.log("No previous reviews"); }
-        }
-        setLoading(false);
-      } catch (err) { router.push('/orders'); }
-    };
-    init();
-  }, [id, router]);
-
-  // The other party's new messages are picked up every few seconds while the
-  // tab is visible. Only unseen messages are merged in, so an unchanged list
-  // never re-renders (and never moves the chat scroll).
-  useEffect(() => {
-    if (loading) return;
-    let stopped = false;
-
-    const pollMessages = async () => {
-      if (document.hidden) return;
-      try {
-        const { data } = await api.get(`/messages/${id}`);
-        if (stopped) return;
-        setMessages((prev) => {
-          const have = new Set(prev.map((m) => m._id));
-          if (data.every((m) => have.has(m._id))) return prev;
-          const ids = new Set(data.map((m) => m._id));
-          // keep messages still being sent (or just sent) that this response predates
-          return [...data, ...prev.filter((m) => !ids.has(m._id))];
-        });
-      } catch (err) { /* keep the current list; try again on the next tick */ }
-    };
-
-    const timer = setInterval(pollMessages, 3000);
-    const onVisible = () => { if (!document.hidden) pollMessages(); };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      stopped = true;
-      clearInterval(timer);
-      document.removeEventListener('visibilitychange', onVisible);
-    };
-  }, [id, loading]);
-
-  // FIX: Stable scroll logic (prevents the whole screen from jumping)
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages]);
-
-  const handleSendMessage = async (e) => {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const submit = async (e) => {
     e.preventDefault();
-    if (!newMessage.trim()) return;
-    const textToSend = newMessage;
-    const tempId = `temp-${Date.now()}`;
-    const optimisticMessage = {
-      _id: tempId,
-      text: textToSend,
-      sender: { _id: userInfo._id, name: userInfo.name },
-      isSending: true
-    };
-    setMessages((prev) => [...prev, optimisticMessage]);
-    setNewMessage('');
+    setBusy(true);
     try {
-      const { data } = await api.post('/messages', { orderId: id, text: textToSend });
-      // If a refresh already brought the saved message in, just drop the placeholder.
-      setMessages((prev) => prev.some(msg => msg._id === data._id)
-        ? prev.filter(msg => msg._id !== tempId)
-        : prev.map(msg => msg._id === tempId ? data : msg));
-    } catch (err) { 
-      setMessages((prev) => prev.filter(msg => msg._id !== tempId));
-      setNewMessage(textToSend);
-      showNotification('error', 'Failed to send message.');
+      await api.post('/reviews', { orderId, rating, comment });
+      onDone();
+    } catch (err) {
+      setError(err.response?.data?.message || 'The review could not be saved.');
+    } finally {
+      setBusy(false);
     }
   };
-
-  const handleContentSubmit = async (e) => {
-    e.preventDefault();
-    setActionLoading(true);
-    try {
-      await api.put(`/orders/${id}/content`, contentData);
-      const { data } = await api.get(`/orders/${id}`);
-      setOrder(data);
-      showNotification('success', 'Requirements submitted successfully.');
-    } catch (err) { showNotification('error', 'Error submitting brief.'); }
-    finally { setActionLoading(false); }
-  };
-
-  const handleMarkPublished = async (e) => {
-    e.preventDefault();
-    if (!liveLink) return showNotification('error', "Enter the live URL.");
-    setActionLoading(true);
-    try {
-      await api.put(`/orders/${id}/publish`, { liveLink });
-      const { data } = await api.get(`/orders/${id}`);
-      setOrder(data);
-      showNotification('success', 'Order marked as published!');
-    } catch (err) { showNotification('error', 'Update failed.'); }
-    finally { setActionLoading(false); }
-  };
-
-  const handleRejectOrder = async () => {
-    if (!window.confirm("Reject this order?")) return;
-    setActionLoading(true);
-    try {
-      await api.put(`/orders/${id}/reject`);
-      const { data } = await api.get(`/orders/${id}`);
-      setOrder(data);
-    } catch (err) { showNotification('error', 'Action failed.'); }
-    finally { setActionLoading(false); }
-  };
-
-  const handleReviewSubmit = async (e) => {
-    e.preventDefault();
-    setActionLoading(true);
-    try {
-      await api.post('/reviews', { orderId: id, rating, comment });
-      setHasReviewed(true);
-      showNotification('success', 'Review submitted.');
-    } catch (err) { showNotification('error', 'Failed to submit review.'); }
-    finally { setActionLoading(false); }
-  };
-
-  if (loading) return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] text-slate-400 space-y-4">
-      <Loader2 size={32} className="animate-spin text-blue-500" />
-      <p className="text-[13px] font-medium uppercase tracking-widest italic">Preparing Workspace...</p>
-    </div>
+  return (
+    <section className="rounded-2xl border border-line bg-white p-5 shadow-[var(--shadow-card)] sm:p-6">
+      <h2 className="text-[15px] font-semibold text-ink">Rate this publisher</h2>
+      <form onSubmit={submit} className="mt-3 space-y-3">
+        <div className="flex gap-1" role="radiogroup" aria-label="Rating">
+          {[1, 2, 3, 4, 5].map((n) => (
+            <button key={n} type="button" role="radio" aria-checked={rating === n} aria-label={`${n} star${n === 1 ? '' : 's'}`} onClick={() => setRating(n)} className={rating >= n ? 'text-amber-500' : 'text-line'}>
+              <Star size={26} fill={rating >= n ? 'currentColor' : 'none'} strokeWidth={1.5} />
+            </button>
+          ))}
+        </div>
+        <Textarea value={comment} onChange={(e) => setComment(e.target.value)} maxLength={2000} placeholder="How did the order go?" aria-label="Your review" />
+        {error && <p className="text-[12px] font-medium text-danger">{error}</p>}
+        <div className="flex justify-end"><Button type="submit" loading={busy} disabled={comment.trim().length < 2}>Post review</Button></div>
+      </form>
+    </section>
   );
+};
 
-  const isBuyer = userInfo?._id === order.buyer._id;
-  const isSeller = userInfo?._id === order.seller._id;
+const OrderDetails = () => {
+  const { id } = useParams();
+  const router = useRouter();
+  const { user } = useSession();
+  const [order, setOrder] = useState(null);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  const notify = (type, message) => {
+    setToast({ type, message });
+    setTimeout(() => setToast((t) => (t?.message === message ? null : t)), 6000);
+  };
+
+  const load = async () => {
+    try {
+      const { data } = await api.get(`/orders/${id}`);
+      setOrder(data);
+    } catch (err) {
+      if (err.response?.status === 404 || err.response?.status === 403) router.push('/orders');
+      else setError(err.response?.data?.message || 'Could not load the order.');
+    }
+  };
+  useEffect(() => { load(); }, [id]);
+
+  // Runs one workflow step. Returns { message, field } when it failed, so
+  // the form can show the error next to the right field.
+  const act = async (action, fields = {}) => {
+    setBusy(true);
+    try {
+      const { data } = await api.post(`/orders/${id}/action`, { action, ...fields });
+      setOrder(data.order);
+      notify('success', data.message);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return undefined;
+    } catch (err) {
+      const res = { message: err.response?.data?.message || 'That didn’t work. Please try again.', field: err.response?.data?.field };
+      notify('error', res.message);
+      if (err.response?.status === 409) load();
+      return res;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (error) return <p className="mx-auto max-w-xl p-10 text-center text-[14px] text-ink-soft">{error}</p>;
+  if (!order || !user) {
+    return <div className="flex min-h-[50vh] items-center justify-center"><Loader2 size={28} className="animate-spin text-brand-500" /></div>;
+  }
+
+  const role = order.viewerRole;
+  const yourTurn = WAITING_ON[order.status] === role;
+  const closed = ['completed', 'cancelled'].includes(order.status);
+  const domain = order.site?.domain || order.listing?.domain;
 
   return (
-    <div className="max-w-7xl mx-auto pb-20 py-8 px-4 sm:px-6">
-      
-      <style>{`
-        .chat-scrollbar::-webkit-scrollbar { width: 5px; }
-        .chat-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .chat-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        .chat-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-        .chat-scrollbar { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
-      `}</style>
-
-      {alert.show && (
-        <div className={`fixed top-8 left-1/2 -translate-x-1/2 z-[100] w-full max-w-md p-4 rounded-xl flex items-start gap-3 border shadow-2xl ${
-          alert.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-800'
-        } animate-in fade-in slide-in-from-top-4 duration-300`}>
-          {alert.type === 'success' ? <CheckCircle2 size={18} className="text-emerald-500 mt-0.5" /> : <AlertCircle size={18} className="text-red-500 mt-0.5" />}
-          <p className="text-[13px] font-medium flex-1">{alert.message}</p>
-          <button onClick={() => setAlert({ show: false, type: '', message: '' })} className="opacity-50 hover:opacity-100"><X size={16} /></button>
+    <div className="mx-auto max-w-7xl pb-20">
+      {toast && (
+        <div role="status" className={`fixed left-1/2 top-6 z-[100] flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 items-start gap-3 rounded-xl border p-4 shadow-[var(--shadow-pop)] ${toast.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-800'}`}>
+          {toast.type === 'success' ? <CheckCircle2 size={18} className="mt-0.5 shrink-0" /> : <AlertCircle size={18} className="mt-0.5 shrink-0" />}
+          <p className="flex-1 text-[13px] font-medium">{toast.message}</p>
+          <button type="button" onClick={() => setToast(null)} aria-label="Dismiss" className="opacity-60 hover:opacity-100"><X size={16} /></button>
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        
-        {/* LEFT PANEL: Workspace */}
-        <div className="lg:col-span-8 space-y-6">
-          <div className="flex items-center justify-between mb-2">
-            <button onClick={() => router.push('/orders')} className="flex items-center text-slate-500 hover:text-slate-900 font-medium text-sm transition-colors">
-              <ArrowLeft size={18} className="mr-2" /> Back to Orders
-            </button>
-            <span className={`px-3 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wide border ${
-              order.status === 'published' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 
-              order.status === 'cancelled' ? 'bg-red-50 text-red-700 border-red-100' : 'bg-amber-50 text-amber-700 border-amber-100'
-            }`}>
-              {order.status.replace('_', ' ')}
-            </span>
+      <Link href={role === 'admin' ? '/admin/orders' : '/orders'} className="mb-5 inline-flex items-center gap-2 text-[13px] font-medium text-ink-soft hover:text-ink">
+        <ArrowLeft size={16} /> {role === 'admin' ? 'All orders' : role === 'seller' ? 'My sales' : 'My orders'}
+      </Link>
+
+      {/* Header */}
+      <header className="mb-5 rounded-2xl border border-line bg-white p-5 shadow-[var(--shadow-card)] sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="truncate text-xl font-semibold tracking-tight text-ink sm:text-2xl">{domain}</h1>
+              <Badge tone={STATUS_TONE[order.status]}>{STATUS_LABEL[order.status] || order.status}</Badge>
+              {order.late && <Badge tone="warning"><Clock size={11} /> Late</Badge>}
+              {yourTurn && <Badge tone="brand">Your turn</Badge>}
+            </div>
+            <p className="mt-1 text-[13px] text-ink-faint">
+              Order #{String(order._id).slice(-6).toUpperCase()} · placed {when(order.createdAt)}
+              {role !== 'buyer' && order.buyer && <> · buyer <span className="text-ink-soft">{order.buyer.name}</span>{role === 'admin' && order.buyer.email ? ` (${order.buyer.email})` : ''}</>}
+              {role !== 'seller' && order.seller && <> · publisher <span className="text-ink-soft">{order.seller.name}</span>{role === 'admin' && order.seller.email ? ` (${order.seller.email})` : ''}</>}
+            </p>
           </div>
-
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8">
-            <div className="mb-8">
-              <h1 className="text-2xl font-semibold text-slate-900 tracking-tight mb-2">{order.listing?.url}</h1>
-              <p className="text-[12px] font-medium text-slate-400 font-mono tracking-wider uppercase">ID: {order._id}</p>
-            </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-10">
-               <div className="bg-slate-50 p-5 rounded-xl border border-slate-100 transition-colors hover:border-slate-200">
-                  <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Contract Total</p>
-                  <p className="text-2xl font-bold text-slate-900">${order.price}</p>
-               </div>
-               <div className="bg-slate-50 p-5 rounded-xl border border-slate-100 transition-colors hover:border-slate-200">
-                  <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Niche Category</p>
-                  <p className="text-2xl font-bold text-slate-900 truncate">{order.listing?.category}</p>
-               </div>
-            </div>
-
-            <div className="border-t border-slate-100 pt-8">
-                <h3 className="text-[14px] font-semibold text-slate-900 mb-6 flex items-center gap-2">
-                    <FileText size={18} className="text-blue-500" /> Project Briefing
-                </h3>
-
-                {order.status === 'awaiting_content' && isBuyer ? (
-                   <form onSubmit={handleContentSubmit} className="space-y-6 bg-slate-50/50 p-6 rounded-2xl border border-slate-200">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-1.5">
-                          <label className="text-[13px] font-medium text-slate-700 block ml-1">Target Link *</label>
-                          <input type="url" required placeholder="https://yoursite.com" className="w-full p-3 bg-white rounded-xl border border-slate-200 outline-none text-sm font-medium focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all" onChange={e => setContentData({...contentData, targetUrl: e.target.value})} />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-[13px] font-medium text-slate-700 block ml-1">Anchor Text *</label>
-                          <input type="text" required placeholder="e.g. SEO Company" className="w-full p-3 bg-white rounded-xl border border-slate-200 outline-none text-sm font-medium focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all" onChange={e => setContentData({...contentData, anchorText: e.target.value})} />
-                        </div>
-                      </div>
-                      <div className="pt-4 border-t border-slate-200 space-y-4">
-                          <div className="space-y-1.5">
-                            <label className="text-[13px] font-medium text-slate-700 block ml-1 flex items-center gap-1.5"><LinkIcon size={14}/> Google Docs / Article URL</label>
-                            <input type="url" placeholder="https://docs.google.com/..." className="w-full p-3 bg-white rounded-xl border border-slate-200 outline-none text-sm font-medium focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all" onChange={e => setContentData({...contentData, articleLink: e.target.value})} />
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-[13px] font-medium text-slate-700 block ml-1 flex items-center gap-1.5"><AlignLeft size={14}/> Instructions</label>
-                            <textarea placeholder="Provide extra details for the publisher..." className="w-full p-3 bg-white rounded-xl border border-slate-200 outline-none text-sm font-medium focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 min-h-[140px] resize-none" onChange={e => setContentData({...contentData, contentNotes: e.target.value})} />
-                          </div>
-                      </div>
-                      <button disabled={actionLoading} className="w-full bg-blue-600 text-white font-semibold py-3.5 rounded-xl shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all text-sm flex items-center justify-center gap-2">
-                        {actionLoading ? <Loader2 size={18} className="animate-spin" /> : 'Submit Brief'}
-                      </button>
-                   </form>
-                ) : order.targetUrl ? (
-                   <div className={`p-6 rounded-2xl border ${order.status === 'cancelled' ? 'bg-red-50 border-red-100' : 'bg-blue-50/20 border-blue-100'}`}>
-                      <div className="flex items-center gap-2 mb-6 text-blue-700 font-semibold text-[13px]">
-                        <CheckCircle2 size={16} /> Data Provided
-                      </div>
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-white p-5 rounded-xl border border-blue-100 shadow-sm">
-                          <div>
-                              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Target</p>
-                              <a href={order.targetUrl} target="_blank" rel="noreferrer" className="text-blue-600 font-semibold text-sm hover:underline break-all inline-flex items-center gap-1">
-                                {order.targetUrl} <ExternalLink size={12}/>
-                              </a>
-                          </div>
-                          <div>
-                              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Anchor</p>
-                              <p className="font-semibold text-slate-800 text-sm italic">"{order.anchorText}"</p>
-                          </div>
-                        </div>
-
-                        {/* Extra requirements display */}
-                        {(order.articleLink || order.contentNotes) && (
-                          <div className="bg-white p-5 rounded-xl border border-blue-100 shadow-sm space-y-4">
-                            {order.articleLink && (
-                              <div>
-                                <p className="text-[11px] font-semibold text-slate-400 uppercase mb-1 flex items-center gap-1.5"><LinkIcon size={12}/> Article Link</p>
-                                <a href={order.articleLink} target="_blank" rel="noreferrer" className="text-blue-600 font-semibold text-sm hover:underline break-all">{order.articleLink}</a>
-                              </div>
-                            )}
-                            {order.contentNotes && (
-                              <div className={order.articleLink ? "pt-4 border-t border-slate-100" : ""}>
-                                <p className="text-[11px] font-semibold text-slate-400 uppercase mb-2 flex items-center gap-1.5"><AlignLeft size={12}/> Content Notes</p>
-                                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 max-h-64 overflow-y-auto whitespace-pre-wrap text-[13px] font-medium text-slate-600">{order.contentNotes}</div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {isSeller && order.status === 'in_progress' && (
-                        <form onSubmit={handleMarkPublished} className="mt-8 pt-6 border-t border-blue-100 space-y-4">
-                          <div className="space-y-1.5">
-                            <label className="text-[13px] font-semibold text-blue-700 block ml-1">Live URL Delivery</label>
-                            <input type="url" required placeholder="Paste the published URL..." value={liveLink} onChange={(e) => setLiveLink(e.target.value)} className="w-full p-3 bg-white rounded-xl border border-blue-200 outline-none text-sm font-medium focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500" />
-                          </div>
-                          <div className="flex gap-3">
-                            <button type="submit" disabled={actionLoading} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl text-sm font-semibold shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2">
-                              {actionLoading ? <Loader2 size={18} className="animate-spin" /> : 'Complete Delivery'}
-                            </button>
-                            <button type="button" onClick={handleRejectOrder} disabled={actionLoading} className="px-6 bg-white border border-red-200 text-red-600 hover:bg-red-50 rounded-xl text-sm font-semibold transition-colors">Reject</button>
-                          </div>
-                        </form>
-                      )}
-                      </div>
-
-                      {order.status === 'published' && order.liveLink && (
-                         <div className="mt-8 pt-6 border-t border-emerald-100 bg-emerald-50/50 -mx-6 -mb-6 p-6 rounded-b-2xl">
-                           <p className="text-[11px] font-semibold text-emerald-600 uppercase mb-2">Live Placement</p>
-                           <a href={order.liveLink} target="_blank" rel="noreferrer" className="text-emerald-700 font-bold hover:underline break-all inline-flex items-center gap-2 text-lg">
-                             {order.liveLink} <ExternalLink size={20} />
-                           </a>
-                         </div>
-                      )}
-                   </div>
-                ) : (
-                   <div className="text-center p-12 bg-slate-50 rounded-2xl border border-slate-100">
-                      <Clock className="mx-auto text-slate-300 mb-3" size={32} />
-                      <p className="text-slate-500 font-medium text-sm">Awaiting project requirements.</p>
-                   </div>
-                )}
-            </div>
+          <div className="shrink-0 text-left sm:text-right">
+            <p className="text-2xl font-bold tabular-nums text-ink">{money(order.price)}</p>
+            <p className="text-[12px] text-ink-faint">{order.paymentStatus === 'paid' ? 'Paid' : 'Payment not taken yet'}</p>
           </div>
+        </div>
+        <div className="mt-6">
+          <OrderTracker order={order} />
+        </div>
+      </header>
 
-          {/* Review Section */}
-          {order.status === 'published' && isBuyer && (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8">
-              <h3 className="text-[14px] font-semibold text-slate-900 mb-6 flex items-center gap-2">
-                <Star size={18} className="text-amber-500" /> Leave Feedback
-              </h3>
-              {hasReviewed ? (
-                <div className="flex items-center gap-3 p-4 bg-emerald-50 rounded-xl text-emerald-700 border border-emerald-100 font-semibold text-[13px]">
-                  <CheckCircle2 size={18} /> Review submitted successfully!
-                </div>
-              ) : (
-                <form onSubmit={handleReviewSubmit} className="space-y-6">
-                  <div className="flex gap-2">
-                    {[1, 2, 3, 4, 5].map((num) => (
-                      <button key={num} type="button" onClick={() => setRating(num)} className={`p-1 transition-transform active:scale-90 ${rating >= num ? 'text-amber-500' : 'text-slate-200'}`}>
-                        <Star size={32} fill={rating >= num ? "currentColor" : "none"} strokeWidth={1.5} />
-                      </button>
-                    ))}
+      <div className="grid gap-5 lg:grid-cols-12">
+        <div className="space-y-5 lg:col-span-7">
+          <OrderActions order={order} onAct={act} busy={busy} />
+          <OrderDispute order={order} onAct={act} busy={busy} />
+          <LinkCard order={order} onAct={act} busy={busy} />
+
+          {/* What was ordered and delivered */}
+          <section className="rounded-2xl border border-line bg-white p-5 shadow-[var(--shadow-card)] sm:p-6">
+            <h2 className="mb-1 text-[15px] font-semibold text-ink">Order details</h2>
+            <dl className="divide-y divide-line">
+              <Row label="Website"><ExtLink href={order.site?.url || `https://${domain}`} /></Row>
+              {order.dueAt && !closed && <Row label="Deadline">{when(order.dueAt)}{order.late ? ' (passed)' : ''}</Row>}
+              {order.contentSource && <Row label="Article">{order.contentSource === 'seller' ? 'Written by the publisher' : 'Provided by the buyer'}</Row>}
+              {order.targetUrl && <Row label="Target URL"><ExtLink href={order.targetUrl} /></Row>}
+              {order.anchorText && <Row label="Anchor text">{order.anchorText}</Row>}
+              {(order.articleLink || order.articleFile?.fileId) && (
+                <Row label={'Buyer’s article'}>
+                  <div className="flex flex-col items-start gap-1.5">
+                    {order.articleLink && <ExtLink href={order.articleLink} />}
+                    {order.articleFile?.fileId && <FileLink file={order.articleFile} />}
                   </div>
-                  <textarea required placeholder="How was the vendor's service?" className="w-full p-4 bg-slate-50 rounded-xl border border-slate-200 outline-none font-medium text-sm h-32 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500" value={comment} onChange={(e) => setComment(e.target.value)} />
-                  <button disabled={actionLoading} className="w-full bg-slate-900 text-white font-semibold py-3.5 rounded-xl text-sm shadow-lg shadow-slate-200 hover:bg-slate-800 transition-all flex items-center justify-center gap-2">
-                    {actionLoading ? <Loader2 size={18} className="animate-spin" /> : 'Submit Review'}
-                  </button>
-                </form>
+                </Row>
               )}
-            </div>
+              {order.contentNotes && <Row label="Instructions"><p className="whitespace-pre-wrap">{order.contentNotes}</p></Row>}
+              {order.draft?.submittedAt && (
+                <Row label={order.draftApprovedAt ? 'Approved draft' : 'Draft'}>
+                  <div className="flex flex-col items-start gap-1.5">
+                    {order.draft.link && <ExtLink href={order.draft.link} />}
+                    {order.draft.file?.fileId && <FileLink file={order.draft.file} />}
+                    {order.draft.text && <p className="max-h-64 w-full overflow-y-auto whitespace-pre-wrap rounded-lg bg-canvas p-3 text-[13px]">{order.draft.text}</p>}
+                    <span className="text-[12px] text-ink-faint">Sent {when(order.draft.submittedAt)}{order.revisionCount ? ` · ${order.revisionCount} change round${order.revisionCount === 1 ? '' : 's'} used` : ''}</span>
+                  </div>
+                </Row>
+              )}
+              {order.liveLink && <Row label="Live post"><ExtLink href={order.liveLink} /></Row>}
+              {order.refundAmount > 0 && <Row label="Refunded">{money(order.refundAmount)}</Row>}
+            </dl>
+          </section>
+
+          {role === 'buyer' && order.status === 'completed' && !order.reviewed && (
+            <ReviewBox orderId={order._id} onDone={() => { setOrder((o) => ({ ...o, reviewed: true })); notify('success', 'Thanks for your review.'); }} />
           )}
+
+          {/* Timeline */}
+          <section className="rounded-2xl border border-line bg-white p-5 shadow-[var(--shadow-card)] sm:p-6">
+            <h2 className="mb-3 text-[15px] font-semibold text-ink">History</h2>
+            <ol className="relative space-y-3 border-l border-line pl-5">
+              {[...(order.events || [])].reverse().map((ev, i) => (
+                <li key={i} className="relative">
+                  <span className="absolute -left-[25px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-brand-500" aria-hidden="true" />
+                  <p className="text-[14px] text-ink">{EVENT_TEXT[ev.type] || ev.type}</p>
+                  <p className="text-[12px] text-ink-faint">{WHO[ev.role] || ev.role} · {when(ev.at)}</p>
+                  {ev.note && <p className="mt-0.5 whitespace-pre-wrap break-words text-[13px] text-ink-soft">{ev.note}</p>}
+                </li>
+              ))}
+            </ol>
+          </section>
         </div>
 
-        {/* RIGHT PANEL: Messaging */}
-        <div className="lg:col-span-4 lg:sticky lg:top-8 h-[calc(100vh-64px)] flex flex-col bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-          <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
-            <h3 className="font-semibold text-slate-800 text-[13px] uppercase tracking-wider">Messaging</h3>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-medium text-emerald-600">LIVE</span>
-              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-            </div>
+        <div className="lg:col-span-5">
+          <div className="lg:sticky lg:top-6">
+            <OrderChat orderId={order._id} me={{ _id: user._id, name: user.name, role: user.role }} closed={closed} />
           </div>
-          
-          <div 
-            ref={scrollRef}
-            className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/40 chat-scrollbar"
-          >
-            {messages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full opacity-30">
-                <AlertCircle size={32} strokeWidth={1} />
-                <p className="mt-2 text-[11px] font-semibold uppercase tracking-widest">No messages yet</p>
-              </div>
-            ) : (
-              messages.map(msg => (
-                <div key={msg._id} className={`flex flex-col ${msg.sender._id === userInfo._id ? 'items-end' : 'items-start'} ${msg.isSending ? 'opacity-60' : ''}`}>
-                  <div className={`max-w-[90%] px-4 py-2 rounded-2xl text-[13px] font-medium shadow-sm leading-relaxed ${
-                    msg.sender._id === userInfo._id ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white text-slate-700 border border-slate-200 rounded-bl-none'
-                  }`}>{msg.text}</div>
-                  <span className="text-[10px] font-medium text-slate-400 mt-1.5 px-1">
-                    {msg.isSending ? 'Sending...' : (msg.sender._id === userInfo._id ? 'You' : msg.sender.name)}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-
-          <form onSubmit={handleSendMessage} className="p-4 border-t border-slate-100 bg-white flex gap-2 shrink-0">
-            <input type="text" value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Send a message..." className="flex-1 bg-slate-50 p-2.5 rounded-xl text-[13px] font-medium outline-none border border-slate-200 focus:border-blue-300 transition-colors" />
-            <button className="bg-blue-600 text-white p-2.5 rounded-xl hover:bg-blue-700 shadow-md shadow-blue-500/10 transition-all active:scale-90"><Send size={18} /></button>
-          </form>
         </div>
       </div>
     </div>

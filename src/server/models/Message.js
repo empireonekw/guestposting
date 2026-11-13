@@ -12,10 +12,14 @@ const messageSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
-    text: {
-      type: String,
-      required: true,
+    text: { type: String, default: '' },
+    // Files sent with the message (stored in GridFS, see server/files.js).
+    attachments: {
+      type: [new mongoose.Schema({ fileId: mongoose.Schema.Types.ObjectId, name: String, size: Number, type: String }, { _id: false })],
+      default: [],
     },
+    // Written by our support team rather than the buyer or seller.
+    fromTeam: { type: Boolean, default: false },
   },
   {
     timestamps: true,

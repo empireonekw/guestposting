@@ -3,6 +3,10 @@ import User from '../models/User';
 import Notification from '../models/Notification';
 import { ensureOwnerAdmin } from '../owner';
 import { checkOwnership } from '../verification';
+import {
+  migrateLegacyOrders, expireUnaccepted, autoApprove, warnLate, escalateDisputes,
+  monitorLinks, escalateLinkCases, startLegacyMonitoring,
+} from './orderJobs';
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
@@ -79,6 +83,16 @@ const jobs = [
     everyMs: DAY,
     run: recheckVerifiedDomains,
   },
+  // --- Module 4: orders ---
+  { name: 'migrate-legacy-orders', everyMs: DAY, run: migrateLegacyOrders },
+  { name: 'expire-unaccepted-orders', everyMs: 10 * 60 * 1000, run: expireUnaccepted },
+  { name: 'auto-approve-orders', everyMs: 30 * 60 * 1000, run: autoApprove },
+  { name: 'warn-late-orders', everyMs: HOUR, run: warnLate },
+  { name: 'escalate-disputes', everyMs: HOUR, run: escalateDisputes },
+  // --- Module 5: links ---
+  { name: 'start-legacy-link-monitoring', everyMs: DAY, run: startLegacyMonitoring },
+  { name: 'monitor-links', everyMs: HOUR, run: monitorLinks },
+  { name: 'escalate-link-cases', everyMs: HOUR, run: escalateLinkCases },
   {
     name: 'clear-expired-reset-codes',
     everyMs: HOUR,

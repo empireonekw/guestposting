@@ -59,6 +59,9 @@ const userSchema = new mongoose.Schema(
       type: Number,
       default: 0
     },
+    // Goes up when the password is reset; logins issued before that stop
+    // working (the number is inside each login token).
+    tokenVersion: { type: Number, default: 0 },
 
     // --- FINANCIAL WALLET FIELDS ---
     balance: { 

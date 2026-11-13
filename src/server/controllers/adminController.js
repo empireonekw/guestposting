@@ -17,7 +17,7 @@ export const getPlatformStats = async () => {
       User.countDocuments(),
       Listing.countDocuments({ isDeleted: { $ne: true } }),
       Order.countDocuments(),
-      Order.aggregate([{ $match: { status: 'published' } }, { $group: { _id: null, total: { $sum: '$price' } } }]),
+      Order.aggregate([{ $match: { status: 'completed' } }, { $group: { _id: null, total: { $sum: '$price' } } }]),
       Order.find()
         .populate('buyer', 'name')
         .populate('listing', 'url')

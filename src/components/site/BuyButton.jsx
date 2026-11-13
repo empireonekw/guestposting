@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import LEGAL from '@/data/legal';
 import { ShoppingCart } from 'lucide-react';
 import api from '@/lib/api';
 import { compact, money } from '@/lib/format';
@@ -31,8 +32,8 @@ const BuyButton = ({ listing, size = 'sm', className = '', label = 'Buy' }) => {
   const placeOrder = async () => {
     setState({ loading: true, error: '' });
     try {
-      await api.post('/orders', { listingId: listing._id });
-      router.push('/orders');
+      const { data } = await api.post('/orders', { listingId: listing._id });
+      router.push(`/orders/${data._id}`);
     } catch (err) {
       setState({ loading: false, error: err.response?.data?.message || 'Could not place the order. Please try again.' });
     }
@@ -64,7 +65,7 @@ const BuyButton = ({ listing, size = 'sm', className = '', label = 'Buy' }) => {
             After you place the order you send the publisher your article or brief, target URL and anchor text.
           </p>
           <p className="text-[12px] text-ink-faint">
-            Your payment is held until the post is live and approved. By placing the order you agree to our{' '}
+            The publisher has {LEGAL.sellerAcceptHours} hours to accept. Then you send your brief. By placing the order you agree to our{' '}
             <Link href="/terms" target="_blank" className="font-medium text-brand-700 hover:underline">Terms</Link> and{' '}
             <Link href="/refund-policy" target="_blank" className="font-medium text-brand-700 hover:underline">Refund Policy</Link>.
           </p>
