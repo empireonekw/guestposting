@@ -6,11 +6,13 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   Star, TrendingUp, Search, Link2, Newspaper, Dices, Leaf, Bitcoin, PanelsTopLeft, Zap,
   Menu, X, ChevronDown, ChevronRight, LayoutGrid, User, LogOut, ShoppingBag, Layers, ShieldCheck,
+  ShoppingCart, Heart, BellRing,
 } from 'lucide-react';
 import Flag from '@/components/ui/Flag';
 import Badge from '@/components/ui/Badge';
 import { buttonClass } from '@/components/ui/Button';
 import useSession from '@/lib/useSession';
+import useBuyerLists from '@/lib/buyerLists';
 import { SITE_LISTS } from '@/data/siteLists';
 import BRAND from '@/data/brand';
 import Logo from '@/components/ui/Logo';
@@ -80,8 +82,9 @@ const TOOLS = [
     title: 'For buyers',
     items: [
       { label: 'Publisher list with filters', href: '/sites' },
-      { label: 'Bulk domain checker' },
-      { label: 'Saved searches & alerts' },
+      { label: 'Bulk domain checker', href: '/tools/domain-checker', note: 'Paste domains, see which we sell' },
+      { label: 'Compare sites side by side', href: '/compare' },
+      { label: 'Saved searches & alerts', href: '/saved-searches' },
     ],
   },
   {
@@ -209,6 +212,9 @@ const accountLinks = (user) => {
   if (!user) return [];
   const links = [
     { label: user.role === 'seller' ? 'My sales' : 'My orders', href: '/orders', icon: ShoppingBag },
+    { label: 'Cart', href: '/cart', icon: ShoppingCart },
+    { label: 'Saved sites', href: '/saved', icon: Heart },
+    { label: 'Saved searches', href: '/saved-searches', icon: BellRing },
   ];
   if (user.role === 'seller' || user.role === 'admin') {
     links.push({ label: 'My websites', href: '/my-listings', icon: Layers });
@@ -222,6 +228,8 @@ const SiteHeader = ({ taxonomy }) => {
   const pathname = usePathname();
   const router = useRouter();
   const { user, signOut } = useSession();
+  const lists = useBuyerLists();
+  const cartCount = user ? lists.cart.size : 0;
   const [open, setOpen] = useState(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mobileSection, setMobileSection] = useState(null);
@@ -323,6 +331,14 @@ const SiteHeader = ({ taxonomy }) => {
         </nav>
 
         <div className="ml-auto flex items-center gap-2" onMouseEnter={hoverClose}>
+          {user && (
+            <Link href="/cart" aria-label={`Cart${cartCount ? ` (${cartCount})` : ''}`} title="Cart" className="relative flex h-9 w-9 items-center justify-center rounded-full text-ink-soft hover:bg-line-soft hover:text-ink">
+              <ShoppingCart size={19} />
+              {cartCount > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 min-w-[18px] rounded-full bg-brand-600 px-1 text-center text-[11px] font-bold leading-[18px] text-white">{cartCount > 99 ? '99+' : cartCount}</span>
+              )}
+            </Link>
+          )}
           {user ? (
             <div ref={accountRef} className="relative">
               <button

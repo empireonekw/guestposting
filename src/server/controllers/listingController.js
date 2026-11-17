@@ -239,6 +239,7 @@ const buildListing = (fields, user) => {
     seller: user.id,
     ...(isAdmin ? rest : fields),
     status: isAdmin ? 'approved' : 'pending',
+    ...(isAdmin ? { approvedAt: new Date() } : {}),
   });
   if (isAdmin) {
     // Our own numbers: there is no seller figure to compare with.

@@ -125,6 +125,9 @@ const listingSchema = new mongoose.Schema(
     },
     // true once the seller proved they own the domain (DNS record or meta tag).
     isVerified: { type: Boolean, default: false },
+    // When it last went live; saved-search alerts (Module 6) look for
+    // listings that went live since the last alert. Older listings have none.
+    approvedAt: { type: Date },
     isFeatured: { type: Boolean, default: false },
     featuredUntil: { type: Date },
     lastVerifiedAt: { type: Date },
@@ -163,6 +166,7 @@ listingSchema.index({ status: 1, isDeleted: 1, 'topCountries.code': 1 });
 listingSchema.index({ status: 1, isDeleted: 1, language: 1 });
 listingSchema.index({ status: 1, isDeleted: 1, traffic: -1 });
 listingSchema.index({ status: 1, isDeleted: 1, dr: -1 });
+listingSchema.index({ status: 1, isDeleted: 1, approvedAt: -1 });
 listingSchema.index({ domain: 1 });
 // A seller's own listings, and duplicate checks.
 listingSchema.index({ seller: 1, isDeleted: 1, createdAt: -1 });

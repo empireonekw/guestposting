@@ -109,7 +109,10 @@ const Orders = () => {
                       {dueText(o) ? ` · ${dueText(o)}` : ''}
                     </p>
                   </div>
-                  <span className="text-[15px] font-semibold tabular-nums text-ink">{money(o.price)}</span>
+                  <span className="text-right text-[15px] font-semibold tabular-nums text-ink">
+                    {o.discount > 0 && <span className="block text-[11px] font-normal text-ink-faint line-through">{money(o.price)}</span>}
+                    {money(o.price - (o.discount || 0))}
+                  </span>
                   <ChevronRight size={16} className="shrink-0 text-ink-faint" />
                 </Link>
               </li>

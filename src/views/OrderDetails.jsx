@@ -178,7 +178,12 @@ const OrderDetails = () => {
             </p>
           </div>
           <div className="shrink-0 text-left sm:text-right">
-            <p className="text-2xl font-bold tabular-nums text-ink">{money(order.price)}</p>
+            {order.discount > 0 && role !== 'seller' && (
+              <p className="text-[13px] tabular-nums text-ink-faint">
+                <span className="line-through">{money(order.price)}</span> · coupon {order.coupon?.code} −{money(order.discount)}
+              </p>
+            )}
+            <p className="text-2xl font-bold tabular-nums text-ink">{money(role === 'seller' ? order.price : order.price - (order.discount || 0))}</p>
             <p className="text-[12px] text-ink-faint">{order.paymentStatus === 'paid' ? 'Paid' : 'Payment not taken yet'}</p>
           </div>
         </div>

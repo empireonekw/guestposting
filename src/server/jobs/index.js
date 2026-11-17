@@ -7,6 +7,7 @@ import {
   migrateLegacyOrders, expireUnaccepted, autoApprove, warnLate, escalateDisputes,
   monitorLinks, escalateLinkCases, startLegacyMonitoring,
 } from './orderJobs';
+import { sendSavedSearchAlerts } from '../savedSearches';
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
@@ -93,6 +94,8 @@ const jobs = [
   { name: 'start-legacy-link-monitoring', everyMs: DAY, run: startLegacyMonitoring },
   { name: 'monitor-links', everyMs: HOUR, run: monitorLinks },
   { name: 'escalate-link-cases', everyMs: HOUR, run: escalateLinkCases },
+  // --- Module 6: buying tools ---
+  { name: 'saved-search-alerts', everyMs: HOUR, run: sendSavedSearchAlerts },
   {
     name: 'clear-expired-reset-codes',
     everyMs: HOUR,

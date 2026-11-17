@@ -14,10 +14,17 @@ import './models/Niche';
 import './models/Country';
 import './models/Conversation';
 import './models/ChatMessage';
+import './models/SavedItem';
+import './models/Coupon';
+import './models/CouponRedemption';
+import './models/SavedSearch';
 
-// One connection per server process, shared across route handlers and
-// survives dev hot reloads.
-const cache = globalThis.__mongoose || (globalThis.__mongoose = { promise: null });
+// One connection per mongoose copy, shared across route handlers and
+// surviving dev hot reloads. The cache lives on the mongoose object, not on
+// globalThis: the scheduled-job runner (instrumentation.js) can get its own
+// copy of mongoose, and a shared "already connecting" flag made that copy
+// skip connecting, so every job query timed out.
+const cache = mongoose.__lrConnection || (mongoose.__lrConnection = { promise: null });
 
 const connectDB = async () => {
   if (mongoose.connection.readyState === 1) return mongoose.connection;

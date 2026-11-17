@@ -1,66 +1,31 @@
 import mongoose from 'mongoose';
 import Order from '../models/Order';
-import Listing from '../models/Listing';
 import Review from '../models/Review';
 import LinkCheck from '../models/LinkCheck';
 import { suggestedRefund, caseOpen } from '../linkMonitor';
-import User, { sellerStatusOf } from '../models/User';
+import User from '../models/User';
 import { json, readBody, serverError, queryParams, getPaging, pageInfo, escapeRegex } from '../http';
 import { str, objectId, oneOf, ValidationError } from '../validate';
 import { rateLimit, MINUTE } from '../rateLimit';
 import { saveOrderFile, findOrderFile, openDownload, KINDS } from '../files';
 import {
-  roleOf, availableActions, runAction, addEvent, notify, isLate, addDays, LATE_GRACE_DAYS,
+  roleOf, availableActions, runAction, isLate, addDays, LATE_GRACE_DAYS,
 } from '../orderFlow';
 import { ORDER_STATUSES, OPEN_STATUSES, WAITING_ON } from '@/data/orderStatus';
-import { BLOCKED_NICHES } from '@/data/listingOptions';
 import LEGAL from '@/data/legal';
+import { placeOrders } from '../buying';
 
-const HOUR = 60 * 60 * 1000;
-
-// POST /api/orders { listingId }
+// POST /api/orders { listingId, couponCode? }: "Buy" for one website. The
+// cart checkout (cartController) places several through the same code.
 export const createOrder = async (request, params, user) => {
   try {
     const limited = rateLimit('order-create', user.id, { limit: 20, windowMs: 10 * MINUTE });
     if (limited) return limited;
     const body = await readBody(request);
     const listingId = objectId(body.listingId, 'listingId', 'Listing');
-
-    const listing = await Listing.findById(listingId);
-    // Only approved, live listings can be bought.
-    if (!listing || listing.isDeleted || listing.status !== 'approved') {
-      return json({ message: 'Listing not found' }, 404);
-    }
-    if ((listing.niches || []).some((n) => BLOCKED_NICHES.includes(n))) {
-      return json({ message: 'This website can’t be ordered.' }, 400);
-    }
-    if (listing.seller.toString() === user.id) {
-      return json({ message: 'You cannot buy your own listing' }, 400);
-    }
-    const listingSeller = await User.findById(listing.seller).select('isSuspended role sellerStatus');
-    if (!listingSeller || listingSeller.isSuspended || ['pending', 'blocked'].includes(sellerStatusOf(listingSeller))) {
-      return json({ message: 'This listing is currently unavailable.' }, 400);
-    }
-
-    const now = new Date();
-    const order = new Order({
-      listing: listing._id,
-      buyer: user.id,
-      seller: listing.seller,
-      site: { domain: listing.domain, url: listing.url },
-      price: listing.price,
-      turnaroundDays: listing.turnaroundDays ?? 3,
-      linkType: listing.linkType || 'dofollow',
-      linkValidity: listing.linkValidity || 'permanent',
-      status: 'pending_acceptance',
-      acceptBy: new Date(now.getTime() + LEGAL.sellerAcceptHours * HOUR),
-    });
-    addEvent(order, { by: user.id, role: 'buyer', type: 'ordered' });
-    await order.save();
-    await notify(order, ['seller'], `New order for ${listing.domain}. Accept or decline it within ${LEGAL.sellerAcceptHours} hours.`, {
-      from: user.id, emailSubject: `New order: ${listing.domain}`,
-    });
-    return json(order, 201);
+    const couponCode = str(body.couponCode, 'couponCode', 'Coupon code', { required: false, max: 40 });
+    const { orders } = await placeOrders(user, [listingId], { couponCode });
+    return json(orders[0], 201);
   } catch (error) {
     return serverError(error);
   }
@@ -74,6 +39,8 @@ const listView = (order, role) => ({
   buyer: order.buyer,
   seller: order.seller,
   price: order.price,
+  // The coupon discount is the buyer's business (the seller earns the full price).
+  discount: role === 'seller' ? undefined : order.discount || 0,
   status: order.status,
   createdAt: order.createdAt,
   dueAt: order.dueAt,
@@ -186,6 +153,11 @@ const detailView = (order, role) => {
   if (role !== 'admin') {
     if (o.buyer) delete o.buyer.email;
     if (o.seller) delete o.seller.email;
+  }
+  // Sellers earn the full price; a buyer's coupon is not their business.
+  if (role === 'seller') {
+    delete o.discount;
+    delete o.coupon;
   }
   return {
     ...o,

@@ -123,7 +123,10 @@ const AdminOrders = () => {
                       {o.dueAt && o.status === 'writing' ? ` · due ${short(o.dueAt)}` : ''}
                     </p>
                   </div>
-                  <span className="text-[14px] font-semibold tabular-nums text-ink">{money(o.price)}</span>
+                  <span className="text-right text-[14px] font-semibold tabular-nums text-ink">
+                    {money(o.price)}
+                    {o.discount > 0 && <span className="block text-[11px] font-normal text-emerald-700">coupon −{money(o.discount)}</span>}
+                  </span>
                   <ChevronRight size={16} className="shrink-0 text-ink-faint" />
                 </Link>
               </li>

@@ -119,6 +119,7 @@ export const reviewListings = async (listings, status, note, admin) => {
       skipped.push({ _id: listing._id, site: siteName(listing), message: blocked });
       continue; // eslint-disable-line no-continue
     }
+    if (status === 'approved' && listing.status !== 'approved') listing.approvedAt = new Date();
     listing.status = status;
     listing.rejectionReason = status === 'rejected' ? note : undefined;
     listing.reviewNote = status === 'changes_requested' ? note : undefined;

@@ -3,6 +3,7 @@ import User from './models/User';
 import { notify, addEvent, site } from './orderEvents';
 import { ValidationError, str, url as urlField, num, oneOf } from './validate';
 import { ownFile } from './files';
+import { releaseCouponIfVoid } from './buying';
 import { rateLimit, HOUR as RL_HOUR } from './rateLimit';
 import {
   runCheck, applyResult, startMonitoring, caseOpen, inGuarantee, problemText, resolveCase, openCaseByAdmin, RESOLUTIONS,
@@ -133,6 +134,8 @@ export const cancelOrder = async (order, { by, role, reason, refund = true }) =>
   order.reviewBy = undefined;
   addEvent(order, { by, role, type: 'cancelled', note: reason });
   await order.save();
+  // Module 6: a checkout whose orders are all cancelled gives its coupon back.
+  await releaseCouponIfVoid(order).catch((err) => console.error('Coupon release failed:', err.message));
 };
 
 const need = (cond, message, field) => {

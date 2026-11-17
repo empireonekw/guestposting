@@ -6,6 +6,8 @@ import Flag from '@/components/ui/Flag';
 import Badge from '@/components/ui/Badge';
 import BuyButton from './BuyButton';
 import MessageSellerButton from './MessageSellerButton';
+import { SaveButton, CartButton, CompareToggle } from '@/components/buying/ListButtons';
+import CompareBar from '@/components/buying/CompareBar';
 import TrafficChart from './TrafficChart';
 import { compact, money } from '@/lib/format';
 import { LINK_TYPES, LINK_VALIDITY, RESTRICTED_TOPICS, labelOf } from '@/data/listingOptions';
@@ -157,7 +159,12 @@ const SiteDetail = ({ listing, others = [], taxonomy, rating }) => {
             <p className="text-3xl font-bold tabular-nums text-ink">{money(listing.price)}</p>
             {listing.linkInsertionPrice > 0 && <p className="mt-0.5 text-[13px] text-ink-soft">Link insertion {money(listing.linkInsertionPrice)}</p>}
             <BuyButton listing={listing} size="lg" className="mt-4 w-full" label="Order guest post" />
+            <div className="mt-2 grid grid-cols-[1fr_auto] gap-2">
+              <CartButton listing={listing} size="md" withLabel className="w-full" />
+              <SaveButton listing={listing} withLabel />
+            </div>
             <MessageSellerButton listing={listing} className="mt-2 w-full" />
+            <div className="mt-3 flex justify-center"><CompareToggle listing={listing} /></div>
             <dl className="mt-4 divide-y divide-line border-t border-line">
               <Row icon={Link2} label="Link type">{labelOf(LINK_TYPES, listing.linkType)}{listing.linksPerPost > 1 ? ` · ${listing.linksPerPost} links` : ''}</Row>
               <Row icon={CalendarClock} label="Link stays">{labelOf(LINK_VALIDITY, listing.linkValidity)}</Row>
@@ -186,7 +193,7 @@ const SiteDetail = ({ listing, others = [], taxonomy, rating }) => {
                 {others.map((o) => (
                   <li key={o._id} className="flex items-center justify-between gap-2 text-sm">
                     <span className="truncate text-ink-soft">{o.seller?.name || 'Publisher'} {o.isVerified && <BadgeCheck size={13} className="inline text-brand-600" />}</span>
-                    <span className="flex items-center gap-2"><span className="font-semibold tabular-nums">{money(o.price)}</span><BuyButton listing={o} /></span>
+                    <span className="flex items-center gap-2"><span className="font-semibold tabular-nums">{money(o.price)}</span><CartButton listing={o} /><BuyButton listing={o} /></span>
                   </li>
                 ))}
               </ul>
@@ -194,6 +201,7 @@ const SiteDetail = ({ listing, others = [], taxonomy, rating }) => {
           )}
         </aside>
       </div>
+      <CompareBar />
     </div>
   );
 };

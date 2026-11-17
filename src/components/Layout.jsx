@@ -7,10 +7,11 @@ import api from '@/lib/api';
 import {
   LayoutGrid, History, Layers, PlusSquare, Globe, ShoppingBag, Users, Settings, LogOut, Bell,
   Info, CheckCircle2, X, ChevronDown, PanelLeftClose, PanelLeftOpen, Menu, ArrowUpRight, Plus, ClipboardCheck,
-  MessageSquare, Code2, Tags, Link2,
+  MessageSquare, Code2, Tags, Link2, ShoppingCart, Heart, BellRing, TicketPercent, ScanSearch,
 } from 'lucide-react';
 import BRAND from '@/data/brand';
 import Logo from '@/components/ui/Logo';
+import useBuyerLists from '@/lib/buyerLists';
 
 // The sidebar for each role, grouped into sections. An item with
 // `children` opens a sub-list.
@@ -33,6 +34,7 @@ const menuFor = (role) => {
       { title: 'Marketplace', items: [
         { name: 'Orders', icon: ShoppingBag, path: '/admin/orders' },
         { name: 'Link monitor', icon: Link2, path: '/admin/links' },
+        { name: 'Coupons', icon: TicketPercent, path: '/admin/coupons' },
         { name: 'Find sites', icon: Globe, path: '/sites' },
       ] },
       { title: 'People', items: [
@@ -57,6 +59,9 @@ const menuFor = (role) => {
       ] },
       { title: 'Marketplace', items: [
         { name: 'Find sites', icon: Globe, path: '/sites' },
+        { name: 'Cart', icon: ShoppingCart, path: '/cart', badge: 'cart' },
+        { name: 'Saved sites', icon: Heart, path: '/saved' },
+        { name: 'Saved searches', icon: BellRing, path: '/saved-searches' },
       ] },
       { title: 'Account', items: [
         { name: 'Settings', icon: Settings, path: '/profile' },
@@ -66,8 +71,14 @@ const menuFor = (role) => {
   return [
     { title: 'Buying', items: [
       { name: 'Find sites', icon: Globe, path: '/sites' },
+      { name: 'Cart', icon: ShoppingCart, path: '/cart', badge: 'cart' },
       { name: 'My orders', icon: ShoppingBag, path: '/orders' },
       { name: 'Messages', icon: MessageSquare, path: '/messages', badge: 'messages' },
+    ] },
+    { title: 'Research', items: [
+      { name: 'Saved sites', icon: Heart, path: '/saved' },
+      { name: 'Saved searches', icon: BellRing, path: '/saved-searches' },
+      { name: 'Domain checker', icon: ScanSearch, path: '/tools/domain-checker' },
     ] },
     { title: 'Account', items: [
       { name: 'Settings', icon: Settings, path: '/profile' },
@@ -94,6 +105,7 @@ const Layout = ({ children }) => {
   const [openGroups, setOpenGroups] = useState({});
   const [chatCount, setChatCount] = useState(0);
   const [waitingSellers, setWaitingSellers] = useState(0);
+  const cartCount = useBuyerLists().cart.size;
   const userInfo = JSON.parse(localStorage.getItem('userInfo'));
   const userId = userInfo?._id;
   const role = userInfo?.role;
@@ -272,6 +284,11 @@ const Layout = ({ children }) => {
                       {item.badge === 'messages' && chatCount > 0 && (
                         <span className={`rounded-full bg-brand-600 px-1.5 text-[11px] font-bold leading-5 text-white ${wide ? '' : 'absolute right-1 top-1'}`} aria-label={`${chatCount} unread`}>
                           {chatCount > 99 ? '99+' : chatCount}
+                        </span>
+                      )}
+                      {item.badge === 'cart' && cartCount > 0 && (
+                        <span className={`rounded-full bg-line px-1.5 text-[11px] font-bold leading-5 text-ink-soft ${wide ? '' : 'absolute right-1 top-1'}`} aria-label={`${cartCount} in cart`}>
+                          {cartCount}
                         </span>
                       )}
                       {item.badge === 'sellers' && waitingSellers > 0 && (

@@ -26,7 +26,7 @@ const runIfDue = async (job) => {
       $or: [{ running: { $ne: true } }, { startedAt: { $lt: new Date(now.getTime() - STALE_LOCK_MS) } }],
     },
     { $set: { running: true, startedAt: now } },
-    { new: true }
+    { returnDocument: 'after' }
   );
   if (!claimed) return;
 

@@ -43,7 +43,14 @@ const orderSchema = new mongoose.Schema(
     seller: { type: ObjectId, ref: 'User', required: true },
     // The website at the time of ordering, for search and history.
     site: { domain: String, url: String },
+    // The listing's price: what the seller earns.
     price: { type: Number, required: true },
+    // Module 6: orders placed together share a checkout id. A coupon's
+    // discount is split across them; the buyer pays price - discount and the
+    // platform covers the difference (the seller's earning is unchanged).
+    checkout: String,
+    coupon: { code: String, id: { type: ObjectId, ref: 'Coupon' } },
+    discount: { type: Number, default: 0 },
     // Set by Module 3 (payments). Until then orders are placed unpaid.
     paymentStatus: { type: String, enum: ['unpaid', 'paid', 'refunded', 'partially_refunded'], default: 'unpaid' },
     turnaroundDays: { type: Number, default: 3 },
@@ -169,6 +176,7 @@ orderSchema.index({ status: 1, reviewBy: 1 });
 orderSchema.index({ status: 1, dueAt: 1 });
 orderSchema.index({ flowVersion: 1 });
 orderSchema.index({ 'site.domain': 1 });
+orderSchema.index({ checkout: 1 });
 // Link monitoring: the hourly job and the admin Links page.
 orderSchema.index({ status: 1, 'link.nextCheckAt': 1 });
 orderSchema.index({ 'link.status': 1, 'link.guaranteeUntil': 1 });

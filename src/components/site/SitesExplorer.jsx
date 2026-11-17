@@ -15,6 +15,9 @@ import Flag from '@/components/ui/Flag';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import BuyButton from './BuyButton';
+import { SaveButton, CartButton, CompareToggle } from '@/components/buying/ListButtons';
+import CompareBar from '@/components/buying/CompareBar';
+import SaveSearchButton from '@/components/buying/SaveSearchButton';
 import Sparkline from '@/components/ui/Sparkline';
 import { Checkbox } from '@/components/ui/Field';
 import Pagination from '@/components/Pagination';
@@ -265,6 +268,12 @@ const SitesExplorer = ({ data, params, fixed = {}, taxonomy, basePath, error }) 
   };
   const clearAll = () => update(Object.fromEntries(FILTER_KEYS.map((k) => [k, ''])));
 
+  // What "Save search" keeps: the page's own filters, the chosen ones and the sort.
+  const savedFilters = { ...params, ...fixed };
+  delete savedFilters.page;
+  delete savedFilters.limit;
+  const searchName = [...fixedChips, ...chips].map((c) => c.label).join(', ') || 'All publishers';
+
   const topicsActive = RESTRICTED_TOPICS.some((t) => params[t.key] === 'yes');
   const moreActive = ['sitewide', 'foreign', 'linkInsertion', 'maxTat'].some((k) => params[k]);
   const activeCount = chips.length;
@@ -409,6 +418,7 @@ const SitesExplorer = ({ data, params, fixed = {}, taxonomy, basePath, error }) 
           >
             {SORTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
           </select>
+          <SaveSearchButton filters={savedFilters} defaultName={searchName} />
           <Button variant="secondary" onClick={exportCsv} loading={exporting} title={user ? 'Download these results as CSV' : 'Sign in to export'}>
             {!exporting && <Download size={16} />}
             <span className="hidden sm:inline">Export CSV</span>
@@ -430,7 +440,7 @@ const SitesExplorer = ({ data, params, fixed = {}, taxonomy, basePath, error }) 
           <>
             {/* Desktop table */}
             <div className="hidden overflow-x-auto rounded-xl border border-line md:block">
-              <table className="w-full min-w-[1080px] border-collapse text-sm">
+              <table className="w-full min-w-[1160px] border-collapse text-sm">
                 <thead className="border-b-2 border-brand-600 bg-canvas">
                   <tr>
                     <th scope="col" className="px-4 py-3 text-left text-[12px] font-semibold text-ink-soft">Website</th>
@@ -466,6 +476,7 @@ const SitesExplorer = ({ data, params, fixed = {}, taxonomy, basePath, error }) 
                           {l.linkType === 'nofollow' && <Badge>Nofollow</Badge>}
                           {l.markedSponsored && <Badge>Sponsored tag</Badge>}
                         </div>
+                        <CompareToggle listing={l} className="mt-1.5" />
                       </td>
                       <td className="px-3 py-3.5 text-right font-semibold tabular-nums">{l.authorityScore || '–'}</td>
                       <td className="px-3 py-3.5 text-right font-semibold tabular-nums">{l.da || '–'}</td>
@@ -487,7 +498,11 @@ const SitesExplorer = ({ data, params, fixed = {}, taxonomy, basePath, error }) 
                         {l.linkInsertionPrice > 0 && <span className="block text-[11px] text-ink-faint">Insertion {money(l.linkInsertionPrice)}</span>}
                       </td>
                       <td className="px-4 py-3.5 text-right">
-                        <BuyButton listing={l} />
+                        <div className="flex items-center justify-end gap-1.5">
+                          <SaveButton listing={l} />
+                          <CartButton listing={l} />
+                          <BuyButton listing={l} />
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -506,6 +521,7 @@ const SitesExplorer = ({ data, params, fixed = {}, taxonomy, basePath, error }) 
                         {l.isVerified && <BadgeCheck size={15} className="shrink-0 text-brand-600" aria-label="Verified" />}
                       </Link>
                       <div className="mt-1.5"><NicheList slugs={l.niches} niches={niches} max={2} /></div>
+                      <CompareToggle listing={l} className="mt-2" />
                     </div>
                     <div className="shrink-0 text-right">
                       <p className="font-bold tabular-nums text-ink">{money(l.price)}</p>
@@ -528,7 +544,11 @@ const SitesExplorer = ({ data, params, fixed = {}, taxonomy, basePath, error }) 
                         </span>
                       ))}
                     </div>
-                    <BuyButton listing={l} />
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <SaveButton listing={l} />
+                      <CartButton listing={l} />
+                      <BuyButton listing={l} />
+                    </div>
                   </div>
                 </li>
               ))}
@@ -539,6 +559,7 @@ const SitesExplorer = ({ data, params, fixed = {}, taxonomy, basePath, error }) 
         )}
       </div>
 
+      <CompareBar />
     </div>
   );
 };
