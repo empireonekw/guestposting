@@ -72,10 +72,9 @@ const sections = [
         <P>Each listing shows its price, link type (dofollow or nofollow), how long the link stays live, the usual turnaround and the seller&rsquo;s content rules. An order works like this:</P>
         <List
           items={[
-            <><strong>You order and pay.</strong> The price shown when you order is the price you pay.</>,
-            <><strong>The seller accepts or declines</strong> within {LEGAL.sellerAcceptHours} hours. If they decline or don&rsquo;t answer, you get a full refund.</>,
-            <><strong>You send the brief:</strong> your article (or topic), target URL and anchor text. The seller may turn down content that breaks their rules or ours.</>,
-            <><strong>The seller publishes</strong> the post and sends you the live URL. Where the seller writes the article, you can review the draft first and ask for up to {LEGAL.revisionRounds} rounds of changes.</>,
+            <><strong>You order with one form:</strong> your article (or the topic, if the publisher writes it), target URL and anchor text. The price shown when you order is the price you pay. Orders placed from the cart get these details on each order afterwards.</>,
+            <><strong>The seller publishes</strong> the post within the listing&rsquo;s turnaround and sends you the live URL, which we check automatically. If they can&rsquo;t take the order, or the content breaks their rules or ours, they decline it and you get a full refund.</>,
+            <><strong>You can cancel for free</strong> within 24 hours of ordering, as long as nothing has been published yet.</>,
             <><strong>You check the live post.</strong> If it matches the order, approve it. If you don&rsquo;t approve it or raise a problem within {LEGAL.autoApproveDays} days, the order is approved automatically.</>,
             <><strong>The order is complete</strong> and the seller is paid. The link is then covered by the guarantee described in our <A href="/refund-policy">Refund Policy</A>.</>,
           ]}

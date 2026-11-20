@@ -51,7 +51,7 @@ export const WAITING_ON = {
 export const ORDER_STEPS = [
   { key: 'ordered', label: 'Ordered' },
   { key: 'accepted', label: 'Accepted' },
-  { key: 'brief', label: 'Brief sent' },
+  { key: 'brief', label: 'Article & brief sent' },
   { key: 'draft', label: 'Draft approved', sellerWritesOnly: true },
   { key: 'published', label: 'Published' },
   { key: 'completed', label: 'Completed' },

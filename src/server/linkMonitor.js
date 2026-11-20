@@ -116,6 +116,9 @@ export const escalateCase = async (order) => {
 // `report`: the buyer said the link is gone, so a problem opens a case at once.
 export const applyResult = async (order, result, { by, role = 'system', report = false } = {}) => {
   const now = new Date();
+  // A seller's post on their own site: no buyer and no case; just keep the
+  // status and tell the owner once when the link is lost.
+  if (order.kind === 'self') return applySelfResult(order, result, now);
   const open = caseOpen(order);
   const streak = (order.link?.failStreak || 0) + (result.verdict === 'ok' || result.verdict === 'warning' ? 0 : 1);
 
@@ -147,6 +150,24 @@ export const applyResult = async (order, result, { by, role = 'system', report =
   }
   await order.save();
   return undefined;
+};
+
+const applySelfResult = async (order, result, now) => {
+  const fine = result.verdict === 'ok' || result.verdict === 'warning';
+  const streak = fine ? 0 : (order.link?.failStreak || 0) + 1;
+  order.set('link.failStreak', streak);
+  order.set('link.nextCheckAt', addDays(now, fine ? CHECK_EVERY_DAYS : RETRY_DAYS));
+  const wasLost = order.link?.status === 'lost';
+  const lost = !fine && (streak >= (result.verdict === 'problem' ? CONFIRM_FAILS : UNREACHABLE_FAILS));
+  order.set('link.status', fine ? result.verdict : lost ? 'lost' : result.verdict);
+  if (!inGuarantee(order, now)) {
+    order.set('link.status', 'ended');
+    order.set('link.nextCheckAt', undefined);
+  }
+  await order.save();
+  if (lost && !wasLost) {
+    await notify(order, ['seller'], `The link you logged on ${site(order)}${order.clientName ? ` for ${order.clientName}` : ''} looks lost: ${result.verdict === 'problem' ? problemText(result.problems) : 'the page couldn\u2019t be opened'}.`);
+  }
 };
 
 // Our team opens a case by hand (e.g. the buyer emailed us).

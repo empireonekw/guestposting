@@ -15,12 +15,13 @@ import BRAND from '@/data/brand';
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) : null);
 
-const Metric = ({ label, source, value, date }) => (
+const Metric = ({ label, source, value, date, note }) => (
   <div className="rounded-2xl border border-line bg-white p-4 shadow-[var(--shadow-card)]">
     <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-faint">{source}</p>
     <p className="text-[13px] font-medium text-ink-soft">{label}</p>
     <p className="mt-1 text-2xl font-bold tabular-nums text-ink">{value}</p>
     {date && <p className="mt-1 text-[11px] text-ink-faint">Checked {date}</p>}
+    {note && <p className="mt-1 text-[11px] text-ink-faint">{note}</p>}
   </div>
 );
 
@@ -89,7 +90,32 @@ const SiteDetail = ({ listing, others = [], taxonomy, rating }) => {
               )}
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-              <Metric source="Ahrefs" label="Domain Rating" value={listing.dr || '–'} date={ahrefsDate} />
+              {Number.isFinite(listing.autoMetrics?.dr) ? (
+                <Metric
+                  source="Ahrefs · automatic"
+                  label="Domain Rating"
+                  value={Math.round(listing.autoMetrics.dr)}
+                  note={<>Domain Rating by <a href="https://ahrefs.com/" target="_blank" rel="noopener noreferrer" className="underline">Ahrefs</a> · {fmtDate(listing.autoMetrics.drAt)}</>}
+                />
+              ) : (
+                <Metric source="Ahrefs" label="Domain Rating" value={listing.dr || '–'} date={ahrefsDate} />
+              )}
+              {Number.isFinite(listing.autoMetrics?.gpScore) && (
+                <Metric
+                  source={`${BRAND.name} · automatic`}
+                  label="GP Authority"
+                  value={`${listing.autoMetrics.gpScore}`}
+                  note={`#${listing.autoMetrics.gpRank.toLocaleString()} of ${(listing.autoMetrics.gpTotal / 1e6).toFixed(0)}M sites on the web (Common Crawl)`}
+                />
+              )}
+              {listing.autoMetrics?.domainCreatedAt && (
+                <Metric
+                  source="Domain registry · automatic"
+                  label="Domain age"
+                  value={`${Math.max(0, Math.floor((Date.now() - new Date(listing.autoMetrics.domainCreatedAt).getTime()) / (365.25 * 86400000)))} yrs`}
+                  note={`Registered ${fmtDate(listing.autoMetrics.domainCreatedAt)}`}
+                />
+              )}
               <Metric source="Moz" label="Domain Authority" value={listing.da || '–'} date={mozDate} />
               <Metric source="Semrush" label="Authority Score" value={listing.authorityScore || '–'} date={semrushDate} />
               <Metric source="Ahrefs" label="Organic traffic" value={compact(listing.traffic)} date={ahrefsDate} />

@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import defineModel from './defineModel';
 
 // One checkout that used a coupon. "released" once every order from that
 // checkout was cancelled: the use is given back to the buyer and the coupon.
@@ -24,5 +25,4 @@ couponRedemptionSchema.index({ coupon: 1, createdAt: -1 });
 couponRedemptionSchema.index({ coupon: 1, user: 1, status: 1 });
 couponRedemptionSchema.index({ checkout: 1 }, { unique: true });
 
-if (process.env.NODE_ENV !== 'production' && mongoose.models.CouponRedemption) mongoose.deleteModel('CouponRedemption');
-export default mongoose.models.CouponRedemption || mongoose.model('CouponRedemption', couponRedemptionSchema);
+export default defineModel('CouponRedemption', couponRedemptionSchema);

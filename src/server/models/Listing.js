@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import defineModel from './defineModel';
 
 // Field names kept from before Module 1 so existing screens and orders keep
 // working: `price` is the guest post price, `da` is Moz DA and `traffic` is
@@ -95,6 +96,27 @@ const listingSchema = new mongoose.Schema(
       checkedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     },
     spamScore: { type: Number, min: 0, max: 100 },
+    // Data we fetch ourselves, for free (src/server/sitedata): DR from
+    // Ahrefs' free endpoint (when set, it is the public DR and sellers can't
+    // change it), our own GP Authority from Common Crawl, and what the home
+    // page and the domain registry say.
+    autoMetrics: {
+      dr: Number,
+      drAt: Date,
+      gpScore: Number,
+      gpRank: Number,
+      gpTotal: Number,
+      gpRelease: String,
+      gpAt: Date,
+      loads: Boolean,
+      https: Boolean,
+      siteTitle: { type: String, maxlength: 140 },
+      siteLanguage: String,
+      domainCreatedAt: Date,
+      infoAt: Date,
+      checkedAt: Date,
+      lastError: { type: String, maxlength: 300 },
+    },
     // Problems the last metrics check found, for the admin report.
     flags: {
       type: [
@@ -174,10 +196,9 @@ listingSchema.index({ url: 1 });
 // The admin report sorts by the date of the last metrics check.
 listingSchema.index({ isDeleted: 1, 'metrics.updatedAt': 1 });
 listingSchema.index({ 'flags.type': 1 });
+// The site-data refresh picks listings checked longest ago.
+listingSchema.index({ isDeleted: 1, 'autoMetrics.checkedAt': 1 });
 // The featured-expiry job.
 listingSchema.index({ isFeatured: 1, featuredUntil: 1 });
 
-// In development a hot reload would otherwise keep the old model, which
-// silently drops fields added since; rebuild it so new fields are saved.
-if (process.env.NODE_ENV !== 'production' && mongoose.models.Listing) mongoose.deleteModel('Listing');
-export default mongoose.models.Listing || mongoose.model('Listing', listingSchema);
+export default defineModel('Listing', listingSchema);

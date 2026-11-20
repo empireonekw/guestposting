@@ -55,7 +55,7 @@ const sections = [
     body: (
       <List
         items={[
-          `Accept or decline each new order within ${LEGAL.sellerAcceptHours} hours. Orders you don’t answer are cancelled and refunded.`,
+          'New orders come with everything you need: the article (or the topic to write about), target URL and anchor text. If you can\u2019t take an order, decline it straight away so the buyer is refunded.',
           'Publish within the turnaround on your listing, or agree a new date with the buyer in the order chat.',
           'Publish on the website ordered, with the link type, target URL and anchor text the buyer gave, and keep the post visible to visitors and search engines unless your listing says otherwise.',
           `If you write the article, offer the buyer up to ${LEGAL.revisionRounds} rounds of reasonable changes.`,

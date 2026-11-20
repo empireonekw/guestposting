@@ -17,7 +17,7 @@ const LEGAL = {
   privacyEmail: BRAND.supportEmail,
   website: (process.env.FRONTEND_URL || 'https://guestposting.live').replace(/\/$/, ''),
   // Shown on every policy. Change it whenever you change a policy.
-  updated: '2026-11-11',
+  updated: '2026-11-20',
 
   // Order and payout rules quoted by the policies. Keep them in line with
   // the order workflow (Module 4) and payouts (Module 3).

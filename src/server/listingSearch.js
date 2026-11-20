@@ -158,6 +158,8 @@ export const PUBLIC_FIELDS = [
   'acceptsForeignLanguage', 'allowed', 'turnaroundDays', 'sampleUrls', 'contentRules',
   'isVerified', 'isFeatured', 'seller', 'createdAt', 'updatedAt',
   'spamScore', 'metrics.source', 'metrics.updatedAt',
+  'autoMetrics.dr', 'autoMetrics.drAt', 'autoMetrics.gpScore', 'autoMetrics.gpRank', 'autoMetrics.gpTotal',
+  'autoMetrics.domainCreatedAt', 'autoMetrics.https',
   'verification.verifiedAt',
 ].join(' ');
 

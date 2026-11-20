@@ -9,6 +9,8 @@ const allowedRolesFor = (pathname) => {
   if (
     pathname === '/add-listing' ||
     pathname === '/my-listings' ||
+    pathname === '/orders/own/new' ||
+    pathname === '/sheets' ||
     pathname.startsWith('/edit-listing/')
   ) return ['seller', 'admin'];
   return [];

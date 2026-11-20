@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import defineModel from './defineModel';
 
 // A chat thread.
 //   direct:  two users (usually a buyer and a seller, about one website)
@@ -34,7 +35,4 @@ const conversationSchema = new mongoose.Schema(
 conversationSchema.index({ participants: 1, lastMessageAt: -1 });
 conversationSchema.index({ kind: 1, status: 1, lastMessageAt: -1 });
 
-// In development a hot reload would otherwise keep the old model, which
-// silently drops fields added since; rebuild it so new fields are saved.
-if (process.env.NODE_ENV !== 'production' && mongoose.models.Conversation) mongoose.deleteModel('Conversation');
-export default mongoose.models.Conversation || mongoose.model('Conversation', conversationSchema);
+export default defineModel('Conversation', conversationSchema);

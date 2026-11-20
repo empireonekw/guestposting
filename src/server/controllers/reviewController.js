@@ -13,6 +13,7 @@ export const createReview = async (request, params, user) => {
     const order = await Order.findById(orderId);
     if (!order) return json({ message: 'Order not found' }, 404);
 
+    if (order.kind === 'self') return json({ message: 'Posts on your own site can\u2019t be reviewed' }, 400);
     if (order.status !== 'completed') {
       return json({ message: 'You can only review completed orders' }, 400);
     }

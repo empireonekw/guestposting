@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import defineModel from './defineModel';
 import { ORDER_STATUSES } from '@/data/orderStatus';
 
 // One order for one guest post. The workflow (Module 4) lives in
@@ -59,7 +60,16 @@ const orderSchema = new mongoose.Schema(
     linkValidity: { type: String, default: 'permanent' },
     status: { type: String, enum: ORDER_STATUSES, default: 'pending_acceptance' },
     // 2 = Module 4 workflow. Older orders are converted by a scheduled job.
-    flowVersion: { type: Number, default: 2 },
+    // 2 = Module 4 workflow (accept, brief, draft...). 3 = one-form ordering:
+    // the brief comes with the order and the seller just publishes. Older
+    // orders keep the steps they started with.
+    flowVersion: { type: Number, default: 3 },
+    // marketplace: a normal order. self: a seller logged a post they
+    // published on their own site for an outside client (no buyer, no fee).
+    kind: { type: String, enum: ['marketplace', 'self'], default: 'marketplace' },
+    // The orderer's own client or project, for sellers and agencies ordering
+    // for clients. Only the orderer and our team see it.
+    clientName: { type: String, maxlength: 120 },
 
     // Acceptance
     acceptBy: Date,
@@ -70,6 +80,8 @@ const orderSchema = new mongoose.Schema(
     targetUrl: String,
     anchorText: String,
     articleLink: String, // a Google Doc or similar
+    articleHtml: String, // pasted into the article editor (cleaned, see server/articleHtml.js)
+    articleWords: Number,
     articleFile: fileSchema,
     contentNotes: String,
     briefAt: Date,
@@ -94,7 +106,7 @@ const orderSchema = new mongoose.Schema(
 
     // The end
     completedAt: Date,
-    completedBy: { type: String, enum: ['buyer', 'auto', 'admin'] },
+    completedBy: { type: String, enum: ['buyer', 'auto', 'admin', 'self'] },
     sellerEarning: Number, // what the seller is credited on completion
     refundAmount: { type: Number, default: 0 },
     cancelledAt: Date,
@@ -182,7 +194,4 @@ orderSchema.index({ status: 1, 'link.nextCheckAt': 1 });
 orderSchema.index({ 'link.status': 1, 'link.guaranteeUntil': 1 });
 orderSchema.index({ 'link.case.status': 1 });
 
-// In development a hot reload would otherwise keep the old model, which
-// silently drops fields added since; rebuild it so new fields are saved.
-if (process.env.NODE_ENV !== 'production' && mongoose.models.Order) mongoose.deleteModel('Order');
-export default mongoose.models.Order || mongoose.model('Order', orderSchema);
+export default defineModel('Order', orderSchema);

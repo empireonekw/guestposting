@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import defineModel from './defineModel';
 
 const countrySchema = new mongoose.Schema(
   {
@@ -12,7 +13,4 @@ const countrySchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-// In development a hot reload would otherwise keep the old model, which
-// silently drops fields added since; rebuild it so new fields are saved.
-if (process.env.NODE_ENV !== 'production' && mongoose.models.Country) mongoose.deleteModel('Country');
-export default mongoose.models.Country || mongoose.model('Country', countrySchema);
+export default defineModel('Country', countrySchema);

@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import defineModel from './defineModel';
 
 const messageSchema = new mongoose.Schema(
   {
@@ -29,7 +30,4 @@ const messageSchema = new mongoose.Schema(
 // Open order chats poll this query every few seconds.
 messageSchema.index({ order: 1, createdAt: 1 });
 
-// In development a hot reload would otherwise keep the old model, which
-// silently drops fields added since; rebuild it so new fields are saved.
-if (process.env.NODE_ENV !== 'production' && mongoose.models.Message) mongoose.deleteModel('Message');
-export default mongoose.models.Message || mongoose.model('Message', messageSchema);
+export default defineModel('Message', messageSchema);

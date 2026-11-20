@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Search, X, Plus } from 'lucide-react';
+import { Check, Search, X, Plus, Loader2, ShieldCheck, Globe2, CalendarDays, Languages, AlertTriangle, BadgeCheck } from 'lucide-react';
 import api from '@/lib/api';
 import Button from '@/components/ui/Button';
 import Flag from '@/components/ui/Flag';
@@ -135,6 +135,54 @@ const NichePicker = ({ taxonomy, value, onChange, error }) => {
   );
 };
 
+// What we found out about the site by ourselves: shown under the address
+// field, and used to fill the form in.
+const SiteCheck = ({ state, onRetry }) => {
+  if (!state) return null;
+  if (state.loading) {
+    return <p className="flex items-center gap-2 rounded-xl border border-line bg-canvas px-4 py-3 text-[13px] text-ink-soft"><Loader2 size={15} className="animate-spin" /> Checking the site: DR, authority, language and domain age…</p>;
+  }
+  if (state.error) {
+    return (
+      <p className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-900">
+        <span>{state.error}</span>
+        {onRetry && <button type="button" onClick={onRetry} className="font-semibold underline">Try again</button>}
+      </p>
+    );
+  }
+  const d = state.data;
+  if (!d) return null;
+  const i = d.info || {};
+  const a = d.authority;
+  const row = (Icon, label, value, ok = true) => (
+    <div className="flex items-start gap-2.5">
+      <Icon size={15} className={`mt-0.5 shrink-0 ${ok ? 'text-brand-600' : 'text-amber-600'}`} />
+      <div className="min-w-0">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-faint">{label}</p>
+        <p className="truncate text-[13px] font-medium text-ink">{value}</p>
+      </div>
+    </div>
+  );
+  return (
+    <div className="rounded-xl border border-brand-200 bg-brand-50/50 p-4">
+      <p className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-brand-800"><BadgeCheck size={15} /> We checked {d.domain} automatically</p>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {row(ShieldCheck, 'Domain Rating', d.dr != null ? `DR ${Math.round(d.dr)}` : d.drAvailable ? (d.drError ? 'Ahrefs did not answer' : 'No DR yet') : 'Typed by you for now', d.dr != null)}
+        {row(Globe2, 'GP Authority', a?.ranked ? `${a.score} / 100 · #${a.rank.toLocaleString()} of ${(a.total / 1e6).toFixed(0)}M sites` : a ? 'Not in the top 10M sites' : 'Not available', !!a?.ranked)}
+        {row(CalendarDays, 'Domain age', i.domainAgeYears != null ? `${i.domainAgeYears} year${i.domainAgeYears === 1 ? '' : 's'} (since ${new Date(i.domainCreatedAt).getFullYear()})` : 'Unknown', i.domainAgeYears != null)}
+        {row(i.loads ? Check : AlertTriangle, 'Site', i.loads ? `Loads${i.https ? ' over HTTPS' : ' (no HTTPS)'}` : `Did not load: ${i.error || 'unknown error'}`, !!i.loads)}
+        {row(Languages, 'Language', i.language ? i.language.toUpperCase() : 'Not detected', !!i.language)}
+        {row(Globe2, 'Site name', i.title || 'Not found', !!i.title)}
+      </div>
+      {d.dr != null && (
+        <p className="mt-3 text-[11px] text-ink-faint">
+          Domain Rating by{' '}<a href={d.attribution?.href || 'https://ahrefs.com/'} target="_blank" rel="noopener noreferrer" className="font-medium underline">Ahrefs</a>. DR is filled in for you and can&apos;t be changed.
+        </p>
+      )}
+    </div>
+  );
+};
+
 const ListingForm = ({ initial, mode = 'create', onSubmit, submitLabel }) => {
   const [taxonomy, setTaxonomy] = useState(null);
   const [form, setForm] = useState(initial ? fromListing(initial) : EMPTY);
@@ -142,6 +190,27 @@ const ListingForm = ({ initial, mode = 'create', onSubmit, submitLabel }) => {
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  // The automatic site check ({ loading } | { data } | { error }).
+  const [check, setCheck] = useState(null);
+  // DR comes from Ahrefs when we have it: locked in the form.
+  const autoDr = check?.data?.dr ?? (Number.isFinite(initial?.autoMetrics?.dr) ? initial.autoMetrics.dr : null);
+
+  const runCheck = async (address = form.url) => {
+    if (mode === 'edit' || !/\.[a-z]{2,}/i.test(address || '')) return;
+    setCheck({ loading: true });
+    try {
+      const { data } = await api.post('/site-lookup', { url: address });
+      setCheck({ data });
+      setForm((f) => ({
+        ...f,
+        dr: data.dr != null ? String(Math.round(data.dr)) : f.dr,
+        language: data.info?.language || f.language,
+        description: f.description || data.info?.description || '',
+      }));
+    } catch (err) {
+      setCheck({ error: err.response?.data?.message || 'We could not check the site right now. You can still fill the form in.' });
+    }
+  };
 
   useEffect(() => {
     api.get('/taxonomy').then(({ data }) => setTaxonomy(data)).catch(() => setMessage('Could not load the niche and country lists. Refresh the page to try again.'));
@@ -241,8 +310,9 @@ const ListingForm = ({ initial, mode = 'create', onSubmit, submitLabel }) => {
         {step === 0 && (
           <>
             <Field label="Website address" htmlFor="url" required error={errors.url} hint={mode === 'edit' ? 'The address cannot be changed. Add the site again if it moved.' : 'The home page of the site you publish on.'}>
-              <Input id="url" value={form.url} onChange={(e) => set('url', e.target.value)} placeholder="example.com" disabled={mode === 'edit'} error={errors.url} />
+              <Input id="url" value={form.url} onChange={(e) => set('url', e.target.value)} onBlur={() => { if (form.url && hostOf(form.url) !== check?.data?.domain) runCheck(); }} placeholder="example.com" disabled={mode === 'edit'} error={errors.url} />
             </Field>
+            <SiteCheck state={check} onRetry={() => runCheck()} />
             <Field label={`Niches (up to ${MAX_NICHES})`} required error={errors.niches} hint="The first niche is the main one.">
               <NichePicker taxonomy={taxonomy} value={form.niches} onChange={(v) => set('niches', v)} error={errors.niches} />
             </Field>
@@ -275,7 +345,14 @@ const ListingForm = ({ initial, mode = 'create', onSubmit, submitLabel }) => {
               <p className="text-sm text-ink-soft">Enter the numbers from your Ahrefs, Moz and Semrush accounts. Our team checks them before buyers see them as checked.</p>
             )}
             <div className="grid gap-5 sm:grid-cols-3">
-              <Field label="DR (Ahrefs)" htmlFor="dr" error={errors.dr}><Input id="dr" type="number" min="0" max="100" value={form.dr} onChange={(e) => set('dr', e.target.value)} error={errors.dr} /></Field>
+              <Field
+                label="DR (Ahrefs)"
+                htmlFor="dr"
+                error={errors.dr}
+                hint={autoDr != null ? <>Domain Rating by <a href="https://ahrefs.com/" target="_blank" rel="noopener noreferrer" className="underline">Ahrefs</a> · filled in for you</> : undefined}
+              >
+                <Input id="dr" type="number" min="0" max="100" value={autoDr != null ? String(Math.round(autoDr)) : form.dr} onChange={(e) => set('dr', e.target.value)} readOnly={autoDr != null} disabled={autoDr != null} error={errors.dr} />
+              </Field>
               <Field label="DA (Moz)" htmlFor="da" error={errors.da}><Input id="da" type="number" min="0" max="100" value={form.da} onChange={(e) => set('da', e.target.value)} error={errors.da} /></Field>
               <Field label="AS (Semrush)" htmlFor="as" error={errors.authorityScore}><Input id="as" type="number" min="0" max="100" value={form.authorityScore} onChange={(e) => set('authorityScore', e.target.value)} error={errors.authorityScore} /></Field>
               <Field label="Organic traffic (Ahrefs)" htmlFor="traffic" error={errors.traffic} hint="Monthly visitors"><Input id="traffic" type="number" min="0" value={form.traffic} onChange={(e) => set('traffic', e.target.value)} error={errors.traffic} /></Field>

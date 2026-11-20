@@ -7,14 +7,13 @@ import SavedItem from './models/SavedItem';
 import User, { sellerStatusOf } from './models/User';
 import { ValidationError } from './validate';
 import { addEvent, notify } from './orderEvents';
+import { applyBrief, briefReadyText } from './orderFlow';
 import { BLOCKED_NICHES } from '@/data/listingOptions';
-import LEGAL from '@/data/legal';
 
 // Placing orders (Module 6): one "Buy" or a whole cart at once, with an
 // optional coupon. Every order path goes through placeOrders(), so the
 // availability rules and coupon rules are the same everywhere.
 
-const HOUR = 60 * 60 * 1000;
 export const MAX_CHECKOUT = 50;
 
 export const cents = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -92,7 +91,7 @@ export const checkCoupon = async (code, user, subtotal) => {
   if (coupon.minSubtotal > 0 && subtotal < coupon.minSubtotal) {
     fail(`This coupon needs an order total of at least ${moneyText(coupon.minSubtotal)}`);
   }
-  if (coupon.firstOrderOnly && (await Order.exists({ buyer: user.id, status: { $ne: 'cancelled' } }))) {
+  if (coupon.firstOrderOnly && (await Order.exists({ buyer: user.id, status: { $ne: 'cancelled' }, kind: { $ne: 'self' } }))) {
     fail('This coupon is only for your first order');
   }
   const used = await CouponRedemption.countDocuments({ coupon: coupon._id, user: user.id, status: 'active' });
@@ -146,7 +145,12 @@ export const releaseCouponIfVoid = async (order) => {
 // Creates one order per orderable listing. Returns the orders, the skipped
 // listings and the discount. Throws when nothing can be ordered or the
 // coupon doesn't apply (then nothing is created).
-export const placeOrders = async (user, listingIds, { couponCode } = {}) => {
+//
+// One-form ordering: with a `brief` (from the order form, already checked by
+// orderFlow.readBrief) the order goes straight to the publisher to publish.
+// Without one (a cart checkout) each order waits for its brief. There is no
+// separate "seller accepts" step any more; the seller can still decline.
+export const placeOrders = async (user, listingIds, { couponCode, brief, clientName } = {}) => {
   if (!listingIds.length) throw new ValidationError('Choose at least one website', 'listingIds');
   if (listingIds.length > MAX_CHECKOUT) {
     throw new ValidationError(`You can order at most ${MAX_CHECKOUT} websites at once`, 'listingIds');
@@ -192,10 +196,14 @@ export const placeOrders = async (user, listingIds, { couponCode } = {}) => {
       turnaroundDays: listing.turnaroundDays ?? 3,
       linkType: listing.linkType || 'dofollow',
       linkValidity: listing.linkValidity || 'permanent',
-      status: 'pending_acceptance',
-      acceptBy: new Date(now.getTime() + LEGAL.sellerAcceptHours * HOUR),
+      status: 'awaiting_brief',
+      ...(clientName ? { clientName } : {}),
     });
     addEvent(order, { by: user.id, role: 'buyer', type: 'ordered', note: shares[i] > 0 ? `Coupon ${coupon.code}: ${moneyText(shares[i])} off` : undefined });
+    if (brief) {
+      applyBrief(order, brief, now);
+      addEvent(order, { by: user.id, role: 'buyer', type: 'brief' });
+    }
     return order;
   });
 
@@ -220,7 +228,9 @@ export const placeOrders = async (user, listingIds, { couponCode } = {}) => {
   await SavedItem.deleteMany({ user: user.id, list: 'cart', listing: { $in: ok.map((l) => l._id) } });
 
   // Tell each seller, all at once (a cart can hold many orders).
-  await Promise.all(orders.map((order) => notify(order, ['seller'], `New order for ${order.site.domain}. Accept or decline it within ${LEGAL.sellerAcceptHours} hours.`, {
+  await Promise.all(orders.map((order) => notify(order, ['seller'], order.status === 'writing'
+    ? `New order for ${order.site.domain}. ${briefReadyText(order)} by ${order.dueAt.toDateString()}. If you can\u2019t take it, decline it from the order page.`
+    : `New order for ${order.site.domain}. The buyer will send the article and details shortly.`, {
     from: user.id, emailSubject: `New order: ${order.site.domain}`,
   }).catch((err) => console.error('Order notification failed:', err.message))));
 

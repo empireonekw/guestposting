@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ShoppingBag, Loader2, ChevronRight, Clock } from 'lucide-react';
+import { ShoppingBag, Loader2, ChevronRight, Clock, Plus } from 'lucide-react';
 import api from '@/lib/api';
 import useSession from '@/lib/useSession';
 import Pagination from '@/components/Pagination';
@@ -33,7 +33,15 @@ const dueText = (o) => {
 
 const Orders = () => {
   const { user } = useSession();
-  const role = user?.role === 'seller' ? 'seller' : 'buyer';
+  // Sellers and admins both sell (their own sites) and buy (for clients);
+  // ?view=purchases or the tabs switch between the two. Buyers only buy.
+  const canSell = user?.role === 'seller' || user?.role === 'admin';
+  const [view, setView] = useState('sales');
+  useEffect(() => {
+    const v = new URLSearchParams(window.location.search).get('view');
+    if (v === 'purchases' || v === 'sales') setView(v);
+  }, []);
+  const role = canSell && view === 'sales' ? 'seller' : 'buyer';
   const [filter, setFilter] = useState('open');
   const [page, setPage] = useState(1);
   const [data, setData] = useState(null);
@@ -49,7 +57,12 @@ const Orders = () => {
       .catch(() => { if (n === seq.current) setError('Could not load your orders.'); });
   }, [user, role, filter, page]);
 
-  useEffect(() => { setPage(1); }, [filter]);
+  useEffect(() => { setPage(1); }, [filter, view]);
+  const switchView = (v) => {
+    setView(v);
+    setData(null);
+    window.history.replaceState(null, '', `?view=${v}`);
+  };
 
   const other = role === 'seller' ? 'buyer' : 'seller';
 
@@ -57,13 +70,29 @@ const Orders = () => {
     <div className="mx-auto max-w-6xl pb-20">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-ink">{role === 'seller' ? 'My sales' : 'My orders'}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-ink">{role === 'seller' ? 'My sales' : canSell ? 'My purchases' : 'My orders'}</h1>
           <p className="mt-1 text-[14px] text-ink-soft">
-            {role === 'seller' ? 'Orders for your websites: accept them, publish, and send the live link.' : 'Your guest post orders and where each one stands.'}
+            {role === 'seller'
+              ? 'Orders for your websites: publish the article and paste the live link. Posts you logged on your own sites for outside clients are here too.'
+              : canSell ? 'Guest posts you ordered on other sellers\u2019 sites, for example for your clients.' : 'Your guest post orders and where each one stands.'}
           </p>
         </div>
-        {role === 'buyer' && <Button href="/sites" variant="secondary">Find more sites</Button>}
+        <div className="flex flex-wrap gap-2">
+          {role === 'seller' && <Button href="/orders/own/new"><Plus size={16} /> Log a post on my site</Button>}
+          <Button href="/sites" variant="secondary">{canSell ? 'Order on another site' : 'Find more sites'}</Button>
+        </div>
       </div>
+
+      {canSell && (
+        <div className="mb-4 inline-flex rounded-xl border border-line bg-white p-1 shadow-[var(--shadow-card)]" role="tablist" aria-label="Sales or purchases">
+          {[['sales', 'My sales'], ['purchases', 'My purchases']].map(([v, label]) => (
+            <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => switchView(v)}
+              className={`rounded-lg px-4 py-1.5 text-[13px] font-semibold ${view === v ? 'bg-brand-600 text-white' : 'text-ink-soft hover:text-ink'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
 
       <section className="overflow-hidden rounded-2xl border border-line bg-white shadow-[var(--shadow-card)]">
         <div className="flex flex-wrap gap-1 border-b border-line px-4 py-3 sm:px-6" role="tablist">
@@ -102,10 +131,12 @@ const Orders = () => {
                       <Badge tone={STATUS_TONE[o.status]}>{STATUS_LABEL[o.status] || o.status}</Badge>
                       {o.late && <Badge tone="warning"><Clock size={11} /> Late</Badge>}
                       {o.yourTurn && <Badge tone="brand">Your turn</Badge>}
+                      {o.kind === 'self' && <Badge tone="neutral">Own site</Badge>}
                     </div>
                     <p className="mt-1 text-[12px] text-ink-faint">
                       #{String(o._id).slice(-6).toUpperCase()} · {short(o.createdAt)}
-                      {o[other]?.name ? ` · ${other === 'seller' ? 'publisher' : 'buyer'} ${o[other].name}` : ''}
+                      {o.kind !== 'self' && o[other]?.name ? ` · ${other === 'seller' ? 'publisher' : 'buyer'} ${o[other].name}` : ''}
+                      {o.clientName ? ` · client ${o.clientName}` : ''}
                       {dueText(o) ? ` · ${dueText(o)}` : ''}
                     </p>
                   </div>

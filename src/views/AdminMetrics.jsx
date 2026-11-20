@@ -17,8 +17,34 @@ const VIEWS = [
   { id: 'all', label: 'All listings' },
 ];
 
-const FLAG_TONE = { traffic_drop: 'danger', spam: 'danger', mismatch: 'warning' };
-const FLAG_LABEL = { traffic_drop: 'Traffic drop', spam: 'High spam score', mismatch: 'Numbers differ' };
+const FLAG_TONE = { traffic_drop: 'danger', spam: 'danger', mismatch: 'warning', suspicious: 'danger' };
+const FLAG_LABEL = { traffic_drop: 'Traffic drop', spam: 'High spam score', mismatch: 'Numbers differ', suspicious: 'Looks fake' };
+
+// Status of the free, automatic data sources (Ahrefs DR, GP Authority index).
+const SiteDataStatus = ({ status }) => {
+  if (!status) return null;
+  const { ahrefs, authority } = status;
+  const pill = (ok, text) => (
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold ${ok ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${ok ? 'bg-emerald-500' : 'bg-amber-500'}`} /> {text}
+    </span>
+  );
+  return (
+    <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 text-[13px] text-slate-600">
+      <p className="mb-2 font-semibold text-slate-900">Automatic site data (free)</p>
+      <div className="flex flex-wrap items-center gap-2">
+        {ahrefs?.enabled
+          ? pill(!ahrefs.lastError || (ahrefs.lastOkAt && ahrefs.lastOkAt > ahrefs.lastErrorAt), `Ahrefs DR on · ${ahrefs.domains.toLocaleString()} domains looked up · ${ahrefs.batchSize} per request, ${ahrefs.gapSeconds} s apart`)
+          : pill(false, 'Ahrefs DR off: add AHREFS_API_KEY to .env')}
+        {authority?.ready
+          ? pill(true, `GP Authority on · ${(authority.indexedDomains / 1e6).toFixed(1)}M domains · ${authority.release}`)
+          : pill(false, 'GP Authority off: run npm run build:authority on the server')}
+      </div>
+      {ahrefs?.lastError && <p className="mt-2 text-[12px] text-red-700">Last Ahrefs error: {ahrefs.lastError}</p>}
+      <p className="mt-2 text-[12px] text-slate-500">DR, GP Authority, domain age and whether the site loads refresh automatically every week. Sites whose numbers look fake are flagged <strong>Looks fake</strong>.</p>
+    </div>
+  );
+};
 
 const fmt = (d) => (d ? new Date(d).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : '–');
 
@@ -82,6 +108,8 @@ const AdminMetrics = () => {
         </p>
         <Link href="/add-listing" className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-2 text-[13px] font-semibold text-white hover:bg-blue-700"><Plus size={14} /> Add a site</Link>
       </div>
+
+      <SiteDataStatus status={data?.siteData} />
 
       {s && (
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">

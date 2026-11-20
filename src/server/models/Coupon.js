@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import defineModel from './defineModel';
 
 // A discount code (Module 6). Our team creates them in Admin → Coupons.
 // One use = one checkout (a cart of one or more orders). The discount comes
@@ -40,5 +41,4 @@ const couponSchema = new mongoose.Schema(
 couponSchema.index({ code: 1 }, { unique: true });
 couponSchema.index({ active: 1, createdAt: -1 });
 
-if (process.env.NODE_ENV !== 'production' && mongoose.models.Coupon) mongoose.deleteModel('Coupon');
-export default mongoose.models.Coupon || mongoose.model('Coupon', couponSchema);
+export default defineModel('Coupon', couponSchema);

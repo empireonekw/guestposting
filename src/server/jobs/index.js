@@ -8,6 +8,7 @@ import {
   monitorLinks, escalateLinkCases, startLegacyMonitoring,
 } from './orderJobs';
 import { sendSavedSearchAlerts } from '../savedSearches';
+import { refreshDueSiteData } from '../sitedata';
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
@@ -96,6 +97,9 @@ const jobs = [
   { name: 'escalate-link-cases', everyMs: HOUR, run: escalateLinkCases },
   // --- Module 6: buying tools ---
   { name: 'saved-search-alerts', everyMs: HOUR, run: sendSavedSearchAlerts },
+  // Free site data: DR (Ahrefs, 1000 domains per request, 5 s apart),
+  // GP Authority (Common Crawl) and site details. Each listing at least weekly.
+  { name: 'refresh-site-data', everyMs: 6 * HOUR, run: () => refreshDueSiteData({ batch: 5000 }) },
   {
     name: 'clear-expired-reset-codes',
     everyMs: HOUR,

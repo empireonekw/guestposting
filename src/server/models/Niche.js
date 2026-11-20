@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import defineModel from './defineModel';
 
 // A niche or sub-niche (sub-niches have a parent slug). Listings store slugs.
 const nicheSchema = new mongoose.Schema(
@@ -14,7 +15,4 @@ const nicheSchema = new mongoose.Schema(
 
 nicheSchema.index({ parent: 1, order: 1 });
 
-// In development a hot reload would otherwise keep the old model, which
-// silently drops fields added since; rebuild it so new fields are saved.
-if (process.env.NODE_ENV !== 'production' && mongoose.models.Niche) mongoose.deleteModel('Niche');
-export default mongoose.models.Niche || mongoose.model('Niche', nicheSchema);
+export default defineModel('Niche', nicheSchema);

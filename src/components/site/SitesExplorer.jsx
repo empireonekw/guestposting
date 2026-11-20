@@ -438,6 +438,10 @@ const SitesExplorer = ({ data, params, fixed = {}, taxonomy, basePath, error }) 
           </div>
         ) : (
           <>
+            {/* Required next to DR data by Ahrefs' Domain Rating licence. */}
+            <p className="mb-1.5 hidden text-right text-[11px] text-ink-faint md:block">
+              DR: Domain Rating by <a href="https://ahrefs.com/" target="_blank" rel="noopener noreferrer" className="underline">Ahrefs</a>
+            </p>
             {/* Desktop table */}
             <div className="hidden overflow-x-auto rounded-xl border border-line md:block">
               <table className="w-full min-w-[1160px] border-collapse text-sm">
@@ -511,6 +515,9 @@ const SitesExplorer = ({ data, params, fixed = {}, taxonomy, basePath, error }) 
             </div>
 
             {/* Phone cards */}
+            <p className="mb-2 text-[11px] text-ink-faint md:hidden">
+              DR: Domain Rating by <a href="https://ahrefs.com/" target="_blank" rel="noopener noreferrer" className="underline">Ahrefs</a>
+            </p>
             <ul className="space-y-3 md:hidden">
               {listings.map((l) => (
                 <li key={l._id} className="rounded-xl border border-line p-4">

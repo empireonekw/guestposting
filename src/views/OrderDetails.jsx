@@ -14,6 +14,7 @@ import OrderActions from '@/components/order/OrderActions';
 import OrderDispute from '@/components/order/OrderDispute';
 import OrderChat from '@/components/order/OrderChat';
 import LinkCard from '@/components/order/LinkCard';
+import ArticleView from '@/components/order/ArticleView';
 import { FileLink } from '@/components/order/OrderFiles';
 import { STATUS_LABEL, STATUS_TONE, WAITING_ON } from '@/data/orderStatus';
 import { money } from '@/lib/format';
@@ -41,6 +42,7 @@ const EVENT_TEXT = {
   link_fixed: 'Link restored',
   link_escalated: 'Link not fixed in time: passed to our team',
   link_resolved: 'Lost-link case settled',
+  own_post: 'Post logged on your own site',
 };
 const WHO = { buyer: 'Buyer', seller: 'Publisher', admin: 'Our team', system: 'Automatic' };
 
@@ -143,7 +145,14 @@ const OrderDetails = () => {
   }
 
   const role = order.viewerRole;
-  const yourTurn = WAITING_ON[order.status] === role;
+  const own = order.kind === 'self';
+  // Sellers and admins also buy (for clients): their purchases live under
+  // "My purchases", their own sales and own-site posts under "My sales".
+  const buysToo = user.role === 'seller' || user.role === 'admin';
+  const [backHref, backLabel] = role === 'admin' ? ['/admin/orders', 'All orders']
+    : role === 'seller' || own ? ['/orders?view=sales', 'My sales']
+      : buysToo ? ['/orders?view=purchases', 'My purchases'] : ['/orders', 'My orders'];
+  const yourTurn = !own && WAITING_ON[order.status] === role;
   const closed = ['completed', 'cancelled'].includes(order.status);
   const domain = order.site?.domain || order.listing?.domain;
 
@@ -157,8 +166,8 @@ const OrderDetails = () => {
         </div>
       )}
 
-      <Link href={role === 'admin' ? '/admin/orders' : '/orders'} className="mb-5 inline-flex items-center gap-2 text-[13px] font-medium text-ink-soft hover:text-ink">
-        <ArrowLeft size={16} /> {role === 'admin' ? 'All orders' : role === 'seller' ? 'My sales' : 'My orders'}
+      <Link href={backHref} className="mb-5 inline-flex items-center gap-2 text-[13px] font-medium text-ink-soft hover:text-ink">
+        <ArrowLeft size={16} /> {backLabel}
       </Link>
 
       {/* Header */}
@@ -167,14 +176,15 @@ const OrderDetails = () => {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="truncate text-xl font-semibold tracking-tight text-ink sm:text-2xl">{domain}</h1>
-              <Badge tone={STATUS_TONE[order.status]}>{STATUS_LABEL[order.status] || order.status}</Badge>
+              {own ? <Badge tone="brand">Your own site</Badge> : <Badge tone={STATUS_TONE[order.status]}>{STATUS_LABEL[order.status] || order.status}</Badge>}
               {order.late && <Badge tone="warning"><Clock size={11} /> Late</Badge>}
               {yourTurn && <Badge tone="brand">Your turn</Badge>}
             </div>
             <p className="mt-1 text-[13px] text-ink-faint">
-              Order #{String(order._id).slice(-6).toUpperCase()} · placed {when(order.createdAt)}
-              {role !== 'buyer' && order.buyer && <> · buyer <span className="text-ink-soft">{order.buyer.name}</span>{role === 'admin' && order.buyer.email ? ` (${order.buyer.email})` : ''}</>}
-              {role !== 'seller' && order.seller && <> · publisher <span className="text-ink-soft">{order.seller.name}</span>{role === 'admin' && order.seller.email ? ` (${order.seller.email})` : ''}</>}
+              {own ? 'Post' : 'Order'} #{String(order._id).slice(-6).toUpperCase()} · {own ? 'logged' : 'placed'} {when(order.createdAt)}
+              {order.clientName && <> · client <span className="text-ink-soft">{order.clientName}</span></>}
+              {!own && role !== 'buyer' && order.buyer && <> · buyer <span className="text-ink-soft">{order.buyer.name}</span>{role === 'admin' && order.buyer.email ? ` (${order.buyer.email})` : ''}</>}
+              {!own && role !== 'seller' && order.seller && <> · publisher <span className="text-ink-soft">{order.seller.name}</span>{role === 'admin' && order.seller.email ? ` (${order.seller.email})` : ''}</>}
             </p>
           </div>
           <div className="shrink-0 text-left sm:text-right">
@@ -184,12 +194,14 @@ const OrderDetails = () => {
               </p>
             )}
             <p className="text-2xl font-bold tabular-nums text-ink">{money(role === 'seller' ? order.price : order.price - (order.discount || 0))}</p>
-            <p className="text-[12px] text-ink-faint">{order.paymentStatus === 'paid' ? 'Paid' : 'Payment not taken yet'}</p>
+            <p className="text-[12px] text-ink-faint">{own ? 'Charged to your client' : order.paymentStatus === 'paid' ? 'Paid' : 'Payment not taken yet'}</p>
           </div>
         </div>
-        <div className="mt-6">
-          <OrderTracker order={order} />
-        </div>
+        {!own && (
+          <div className="mt-6">
+            <OrderTracker order={order} />
+          </div>
+        )}
       </header>
 
       <div className="grid gap-5 lg:grid-cols-12">
@@ -204,11 +216,16 @@ const OrderDetails = () => {
             <dl className="divide-y divide-line">
               <Row label="Website"><ExtLink href={order.site?.url || `https://${domain}`} /></Row>
               {order.dueAt && !closed && <Row label="Deadline">{when(order.dueAt)}{order.late ? ' (passed)' : ''}</Row>}
-              {order.contentSource && <Row label="Article">{order.contentSource === 'seller' ? 'Written by the publisher' : 'Provided by the buyer'}</Row>}
+              {order.contentSource && !own && <Row label="Article">{order.contentSource === 'seller' ? 'Written by the publisher' : 'Provided by the buyer'}</Row>}
+              {order.articleHtml && (
+                <Row label={own ? 'Article' : 'Buyer\u2019s article'}>
+                  <ArticleView html={order.articleHtml} words={order.articleWords} domain={domain} />
+                </Row>
+              )}
               {order.targetUrl && <Row label="Target URL"><ExtLink href={order.targetUrl} /></Row>}
               {order.anchorText && <Row label="Anchor text">{order.anchorText}</Row>}
               {(order.articleLink || order.articleFile?.fileId) && (
-                <Row label={'Buyer’s article'}>
+                <Row label={order.articleHtml ? 'Article link' : 'Buyer\u2019s article'}>
                   <div className="flex flex-col items-start gap-1.5">
                     {order.articleLink && <ExtLink href={order.articleLink} />}
                     {order.articleFile?.fileId && <FileLink file={order.articleFile} />}

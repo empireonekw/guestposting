@@ -16,7 +16,13 @@ const doneAt = (order, key) => ({
 const fmt = (d) => (d ? new Date(d).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) : '');
 
 const OrderTracker = ({ order }) => {
-  const steps = ORDER_STEPS.filter((s) => !s.sellerWritesOnly || order.contentSource === 'seller');
+  // One-form orders (flowVersion 3) have no "accepted" or draft-approval step.
+  const oneForm = (order.flowVersion || 2) >= 3;
+  const steps = ORDER_STEPS.filter((s) => {
+    if (s.key === 'accepted') return !oneForm;
+    if (s.sellerWritesOnly) return !oneForm && order.contentSource === 'seller';
+    return true;
+  });
   const stopped = order.status === 'cancelled';
   const current = steps.findIndex((s) => !doneAt(order, s.key));
 

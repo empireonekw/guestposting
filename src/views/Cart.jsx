@@ -13,7 +13,6 @@ import Badge from '@/components/ui/Badge';
 import CouponField from '@/components/buying/CouponField';
 import { CompareToggle } from '@/components/buying/ListButtons';
 import CompareBar from '@/components/buying/CompareBar';
-import LEGAL from '@/data/legal';
 
 // The cart (Module 6): every site the buyer added, a coupon, and one button
 // that places an order per site. Each order then runs on its own.
@@ -30,7 +29,7 @@ const Done = ({ result }) => (
         {result.orders.length} order{result.orders.length === 1 ? '' : 's'} placed
       </h1>
       <p className="mt-1 text-[14px] text-ink-soft">
-        Each publisher has {LEGAL.sellerAcceptHours} hours to accept. Once they do, open the order and send your brief, target URL and anchor text.
+        After checkout, open each order and paste the article (or the topic), target URL and anchor text. The publisher then publishes it.
       </p>
       <ul className="mt-5 divide-y divide-line rounded-xl border border-line">
         {result.orders.map((o) => (
@@ -255,7 +254,7 @@ const Cart = () => {
               </Button>
               {checkoutError && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-[13px] text-red-800">{checkoutError}</p>}
               <p className="mt-3 text-[12px] leading-relaxed text-ink-faint">
-                Each publisher has {LEGAL.sellerAcceptHours} hours to accept; then you send each one your brief. By placing these orders you agree to our{' '}
+                Next you send each order its article and link details. To order one site with everything in one step, use its Buy button. By placing these orders you agree to our{' '}
                 <Link href="/terms" target="_blank" className="font-medium text-brand-700 hover:underline">Terms</Link> and{' '}
                 <Link href="/refund-policy" target="_blank" className="font-medium text-brand-700 hover:underline">Refund Policy</Link>.
               </p>

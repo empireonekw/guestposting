@@ -4,6 +4,7 @@ import { json, readBody, serverError, queryParams, getPaging, pageInfo } from '.
 import { objectId, oneOf, num, str, ValidationError } from '../validate';
 import { applyCheckedMetrics, STALE_AFTER_DAYS } from '../metrics';
 import { readTopCountries } from './listingController';
+import { siteDataStatus } from '../sitedata';
 
 const live = { isDeleted: { $ne: true } };
 const VIEWS = ['flagged', 'stale', 'seller', 'all', 'duplicates'];
@@ -62,7 +63,7 @@ export const getMetricsReport = async (request) => {
     delete summary._id;
     summary.duplicates = duplicates.length;
 
-    const result = { summary, staleAfterDays: STALE_AFTER_DAYS, view };
+    const result = { summary, staleAfterDays: STALE_AFTER_DAYS, view, siteData: siteDataStatus() };
 
     if (view === 'duplicates') {
       result.duplicates = duplicates.map((d) => ({
@@ -128,6 +129,8 @@ export const updateCheckedMetrics = async (request, params, user) => {
 
     const listing = await Listing.findOne({ _id: id, isDeleted: { $ne: true } });
     if (!listing) return json({ message: 'Listing not found' }, 404);
+    // DR comes from Ahrefs once we have it.
+    if (Number.isFinite(listing.autoMetrics?.dr)) delete values.dr;
     const { isLatest } = applyCheckedMetrics(listing, values, { userId: user.id, checkedAt });
     await listing.save();
     await logActivity(user.id, 'METRICS_CHECKED', listing._id, `${isLatest ? 'Checked' : 'Added history for'} ${listing.domain} (${checkedAt.toISOString().slice(0, 10)})`);

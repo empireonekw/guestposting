@@ -17,7 +17,8 @@ const countIn = (Model, match, from, to) => Model.countDocuments({ ...match, cre
 
 const sumOrders = async (match, from, to) => {
   const rows = await Order.aggregate([
-    { $match: { ...match, createdAt: { $gte: from, $lt: to } } },
+    // Sellers' own-site posts aren't marketplace sales.
+    { $match: { ...match, kind: { $ne: 'self' }, createdAt: { $gte: from, $lt: to } } },
     { $group: { _id: null, total: { $sum: '$price' }, n: { $sum: 1 } } },
   ]);
   return { total: rows[0]?.total || 0, n: rows[0]?.n || 0 };
@@ -26,7 +27,7 @@ const sumOrders = async (match, from, to) => {
 // Order value per day for [from, to), one entry per day (zeros included).
 const dailyOrderValue = async (from, to) => {
   const rows = await Order.aggregate([
-    { $match: { status: { $ne: 'cancelled' }, createdAt: { $gte: from, $lt: to } } },
+    { $match: { status: { $ne: 'cancelled' }, kind: { $ne: 'self' }, createdAt: { $gte: from, $lt: to } } },
     { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, value: { $sum: '$price' }, n: { $sum: 1 } } },
   ]);
   const byDay = new Map(rows.map((r) => [r._id, r]));
@@ -76,7 +77,7 @@ export const getOverview = async (request) => {
       Listing.countDocuments({ ...live, isVerified: true }),
       dailyOrderValue(start, end),
       dailyOrderValue(prevStart, start),
-      Order.find().sort({ createdAt: -1 }).limit(6).populate('buyer', 'name').populate('listing', 'domain url').lean(),
+      Order.find({ kind: { $ne: 'self' } }).sort({ createdAt: -1 }).limit(6).populate('buyer', 'name').populate('listing', 'domain url').lean(),
       Listing.find({ ...live, status: 'pending' }).sort({ createdAt: -1 }).limit(6).populate('seller', 'name').select('domain url price createdAt seller').lean(),
     ]);
 

@@ -32,3 +32,6 @@ Thumbs.db
 .next-*/
 .next-old/
 .next-failed/
+
+# GP Authority index built from Common Crawl (scripts/build-authority-index.mjs)
+/data/authority/

@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import defineModel from './defineModel';
 
 // A website a buyer saved (list "saved", the wishlist) or put in the cart
 // (list "cart"). One row per user, list and listing (Module 6).
@@ -17,5 +18,4 @@ const savedItemSchema = new mongoose.Schema(
 savedItemSchema.index({ user: 1, list: 1, listing: 1 }, { unique: true });
 savedItemSchema.index({ user: 1, list: 1, createdAt: -1 });
 
-if (process.env.NODE_ENV !== 'production' && mongoose.models.SavedItem) mongoose.deleteModel('SavedItem');
-export default mongoose.models.SavedItem || mongoose.model('SavedItem', savedItemSchema);
+export default defineModel('SavedItem', savedItemSchema);

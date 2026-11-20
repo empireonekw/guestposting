@@ -21,7 +21,8 @@ const sections = [
         <List
           items={[
             'Cancel before the seller accepts: full refund.',
-            `Seller declines, or doesn’t answer within ${LEGAL.sellerAcceptHours} hours: full refund.`,
+            'Cancel within 24 hours of ordering, before anything is published: full refund.',
+            'The seller declines the order: full refund.',
             'Seller can’t publish, or the published post doesn’t match the order and isn’t fixed: full refund.',
             `Link removed during the guarantee period and not restored within ${LEGAL.linkFixDays} days: replacement or refund.`,
           ]}
@@ -31,11 +32,11 @@ const sections = [
   },
   {
     id: 'before-work',
-    title: 'Cancelling before work starts',
+    title: 'Cancelling in the first 24 hours',
     body: (
       <P>
-        You can cancel an order for a full refund at any time until the seller accepts it. You also get a full refund if the seller declines the order, doesn&rsquo;t
-        accept it within {LEGAL.sellerAcceptHours} hours, or their account or listing is removed before they deliver.
+        You can cancel an order for a full refund within 24 hours of placing it, as long as the publisher hasn&rsquo;t published it yet. You also get a full
+        refund if the seller declines the order, or their account or listing is removed before they deliver.
       </P>
     ),
   },

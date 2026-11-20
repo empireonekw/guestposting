@@ -3,6 +3,7 @@ import User from './models/User';
 import { notify, addEvent, site } from './orderEvents';
 import { ValidationError, str, url as urlField, num, oneOf } from './validate';
 import { ownFile } from './files';
+import { cleanArticle, wordCount } from './articleHtml';
 import { releaseCouponIfVoid } from './buying';
 import { rateLimit, HOUR as RL_HOUR } from './rateLimit';
 import {
@@ -52,11 +53,60 @@ export const isLate = (order, now = new Date()) =>
 const buyerMayCancelLate = (order, now) =>
   order.status === 'writing' && !!order.dueAt && addDays(order.dueAt, LATE_GRACE_DAYS) < now;
 
-const needsDraft = (order) => order.contentSource === 'seller' && !order.draftApprovedAt;
+// One-form orders go straight to the publisher, so the buyer can still
+// change their mind for CANCEL_WINDOW_HOURS, as long as nothing is published.
+export const CANCEL_WINDOW_HOURS = 24;
+const buyerMayCancelEarly = (order, now) =>
+  order.status === 'writing' && !order.deliveredAt && !!order.briefAt
+  && now - new Date(order.briefAt) < CANCEL_WINDOW_HOURS * HOUR;
+
+// Only orders from before one-form ordering have a draft-approval step.
+const needsDraft = (order) => (order.flowVersion || 2) < 3 && order.contentSource === 'seller' && !order.draftApprovedAt;
+
+// The brief: who writes the article, the article itself (pasted into the
+// editor, or a link), target URL, anchor text and instructions. Used by the
+// order form (all at once) and by the brief step of cart orders.
+export const readBrief = (body, { articleFile } = {}) => {
+  const contentSource = oneOf(body.contentSource, 'contentSource', 'Who writes the article', ['buyer', 'seller']);
+  const brief = {
+    contentSource,
+    targetUrl: urlField(body.targetUrl, 'targetUrl', 'Target URL'),
+    anchorText: str(body.anchorText, 'anchorText', 'Anchor text', { max: 200 }),
+    contentNotes: str(body.contentNotes, 'contentNotes', 'Instructions', { required: false, max: 5000 }),
+  };
+  if (contentSource === 'buyer') {
+    brief.articleHtml = cleanArticle(body.articleHtml);
+    brief.articleLink = urlField(body.articleLink, 'articleLink', 'Article link', { required: false });
+    if (articleFile) brief.articleFile = articleFile;
+    need(brief.articleHtml || brief.articleLink || brief.articleFile, 'Paste your article into the editor, or share a link to it.', 'articleHtml');
+    if (brief.articleHtml) brief.articleWords = wordCount(brief.articleHtml);
+  } else {
+    need(brief.contentNotes && brief.contentNotes.length >= 20, 'Tell the publisher what to write about (at least 20 characters).', 'contentNotes');
+  }
+  return brief;
+};
+
+// Puts a brief on an order and starts the clock: the seller has the
+// listing's turnaround (+2 days when they write the article) to publish.
+export const applyBrief = (order, brief, now = new Date()) => {
+  Object.entries(brief).forEach(([k, v]) => { order[k] = v; });
+  order.status = 'writing';
+  order.briefAt = now;
+  order.dueAt = addDays(now, Math.max(1, order.turnaroundDays || 3) + (brief.contentSource === 'seller' ? 2 : 0));
+};
+
+export const briefReadyText = (order) => (order.contentSource === 'seller'
+  ? `Write the article about the topic in the brief, publish it on ${site(order)} and paste the live link`
+  : `The article is ready: publish it on ${site(order)} and paste the live link`);
 
 // The actions this person can take right now. The order page shows exactly
 // these, and runAction refuses anything else.
 export const availableActions = (order, role, now = new Date()) => {
+  // A post a seller logged on their own site: there is no buyer, so the only
+  // thing to do is re-check the link.
+  if (order.kind === 'self') {
+    return role && order.liveLink && order.link?.status !== 'ended' ? ['check_link'] : [];
+  }
   const s = order.status;
   const out = [];
   const disputable = ['writing', 'content_review', 'published'].includes(s);
@@ -64,7 +114,7 @@ export const availableActions = (order, role, now = new Date()) => {
     if (s === 'pending_acceptance' || s === 'awaiting_brief') out.push('cancel');
     if (s === 'awaiting_brief') out.push('brief');
     if (s === 'writing') out.push('extend');
-    if (buyerMayCancelLate(order, now)) out.push('cancel');
+    if (buyerMayCancelLate(order, now) || buyerMayCancelEarly(order, now)) out.push('cancel');
     if (s === 'content_review') {
       out.push('approve_draft');
       if ((order.revisionCount || 0) < LEGAL.revisionRounds) out.push('request_revision');
@@ -174,24 +224,11 @@ export const runAction = async (order, user, role, body) => {
 
     // ---- Brief ----
     case 'brief': {
-      const contentSource = oneOf(body.contentSource, 'contentSource', 'Who writes the article', ['buyer', 'seller']);
-      order.targetUrl = urlField(body.targetUrl, 'targetUrl', 'Target URL');
-      order.anchorText = str(body.anchorText, 'anchorText', 'Anchor text', { max: 200 });
-      order.articleLink = urlField(body.articleLink, 'articleLink', 'Article link', { required: false });
-      order.articleFile = await files(body.articleFileId, ['article']);
-      order.contentNotes = str(body.contentNotes, 'contentNotes', 'Instructions', { required: false, max: 5000 });
-      if (contentSource === 'buyer') {
-        need(order.articleLink || order.articleFile, 'Add your article: upload the file or paste a link to it.', 'articleLink');
-      } else {
-        need(order.contentNotes && order.contentNotes.length >= 20, 'Tell the publisher what to write about (at least 20 characters).', 'contentNotes');
-      }
-      order.contentSource = contentSource;
-      order.status = 'writing';
-      order.briefAt = now;
-      order.dueAt = addDays(now, Math.max(1, order.turnaroundDays || 3) + (contentSource === 'seller' ? 2 : 0));
+      const brief = readBrief(body, { articleFile: await files(body.articleFileId, ['article']) });
+      applyBrief(order, brief, now);
       addEvent(order, { ...who, type: 'brief' });
       await order.save();
-      await notify(order, ['seller'], `The brief for ${site(order)} is ready. ${contentSource === 'seller' ? 'Write the article and send the draft for approval.' : 'The article is attached; publish it and send the live link.'}`, { from: user.id });
+      await notify(order, ['seller'], `${briefReadyText(order)} by ${order.dueAt.toDateString()}.`, { from: user.id, emailSubject: `Ready to publish: ${site(order)}` });
       return 'Brief sent. The publisher can start now.';
     }
 
@@ -289,7 +326,7 @@ export const runAction = async (order, user, role, body) => {
     // ---- Cancelling ----
     case 'cancel': {
       const reason = str(body.reason, 'reason', 'Reason', { required: role === 'seller', min: 5, max: 1000 });
-      const late = role === 'buyer' && order.status === 'writing';
+      const late = role === 'buyer' && order.status === 'writing' && buyerMayCancelLate(order, now);
       await cancelOrder(order, { ...who, reason: reason || (late ? 'Cancelled by the buyer: not delivered in time' : 'Cancelled by the buyer') });
       await notify(order, [role === 'buyer' ? 'seller' : 'buyer'],
         role === 'buyer'

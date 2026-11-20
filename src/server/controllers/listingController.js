@@ -18,6 +18,7 @@ import {
 } from '@/data/listingOptions';
 import { slugify } from '@/data/niches';
 import { OPEN_STATUSES } from '@/data/orderStatus';
+import { refreshInBackground, refreshAutoFlags } from '../sitedata';
 
 // Deleted listings are kept for order history but hidden everywhere else.
 const notDeleted = { isDeleted: { $ne: true } };
@@ -283,6 +284,8 @@ export const createListing = async (request, params, user) => {
       return json({ message: 'You have already listed this website.', field: 'url' }, 400);
     }
     const listing = await buildListing(fields, user).save();
+    // DR from Ahrefs, GP Authority and site details, fetched in the background.
+    refreshInBackground(listing._id);
     return json(listing, 201);
   } catch (error) {
     return serverError(error);
@@ -493,7 +496,11 @@ export const bulkUploadListings = async (request, params, user) => {
       }
     }
 
-    if (valid.length) await Listing.insertMany(valid);
+    if (valid.length) {
+      const inserted = await Listing.insertMany(valid);
+      // Fetched in batches of 1000 domains, 5 seconds apart (sitedata/ahrefs.js).
+      refreshInBackground(inserted.map((l) => l._id));
+    }
 
     const message = errors.length
       ? `${valid.length} of ${rows.length} listings uploaded. ${errors.length} row${errors.length === 1 ? '' : 's'} had problems.`
@@ -540,6 +547,8 @@ export const updateListing = async (request, params, user) => {
     if (user.role === 'admin') {
       // An admin changing the numbers counts as a dated check by our team.
       const values = metricValues(fields);
+      // DR comes from Ahrefs once we have it; nobody types over it.
+      if (Number.isFinite(listing.autoMetrics?.dr)) delete values.dr;
       METRIC_KEYS.forEach((k) => { delete fields[k]; });
       delete fields.topCountries;
       listing.set(fields);
@@ -549,7 +558,12 @@ export const updateListing = async (request, params, user) => {
       if (changed) applyCheckedMetrics(listing, values, { userId: user.id });
     } else {
       // Sellers only update their own reported numbers once we've checked.
-      listing.set(protectMetrics(fields, { locked: isChecked(listing), nested: false }));
+      const own = protectMetrics(fields, { locked: isChecked(listing), nested: false });
+      // DR comes from Ahrefs once we have it: the seller's figure is only kept
+      // for comparison.
+      if (Number.isFinite(listing.autoMetrics?.dr)) delete own.dr;
+      listing.set(own);
+      refreshAutoFlags(listing);
       // A seller's edit goes back to "pending" so an admin reviews it. The
       // ownership badge stays: the domain hasn't changed.
       listing.status = 'pending';

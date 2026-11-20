@@ -5,6 +5,7 @@ import { CheckCircle2, Send, CalendarPlus, AlertTriangle, XCircle, ExternalLink 
 import Button from '@/components/ui/Button';
 import { Field, Input, Textarea, Select } from '@/components/ui/Field';
 import { FilePicker } from './OrderFiles';
+import ArticleEditor from '@/components/editor/ArticleEditor';
 
 // The "Next step" card on the order page. It only offers what the server
 // listed in order.actions, and sends each one to POST /orders/:id/action
@@ -24,7 +25,9 @@ export const statusLine = (o) => {
     case 'awaiting_brief':
       return r === 'buyer' ? 'Send your brief so the publisher can start.' : 'Waiting for the buyer’s brief.';
     case 'writing': {
-      const what = o.contentSource === 'seller' && !o.draftApprovedAt ? 'writing the article' : 'publishing the post';
+      const what = o.contentSource === 'seller' && !o.draftApprovedAt
+        ? ((o.flowVersion || 2) >= 3 ? 'writing and publishing the article' : 'writing the article')
+        : 'publishing the post';
       const due = o.dueAt ? ` Due ${dateText(o.dueAt)}.` : '';
       if (o.late) return r === 'seller' ? `This order is late.${due} Publish it, or agree a new date with the buyer in the chat.` : `The publisher is late.${due} You can give more time${o.actions?.includes('cancel') ? ', or cancel the order' : ''}.`;
       return r === 'seller' ? `Your turn: ${what}.${due}` : `The publisher is ${what}.${due}`;
@@ -81,8 +84,8 @@ const NoteAction = ({ label, icon: Icon, variant = 'secondary', field, hint, req
 };
 
 const BriefForm = ({ order, onAct, busy }) => {
-  const [f, setF] = useState({ contentSource: 'buyer', targetUrl: '', anchorText: '', articleLink: '', contentNotes: '' });
-  const [file, setFile] = useState(null);
+  const [f, setF] = useState({ contentSource: 'buyer', targetUrl: '', anchorText: '', articleHtml: '', articleLink: '', contentNotes: '' });
+  const [words, setWords] = useState(0);
   const [errors, setErrors] = useState({});
   const set = (k, v) => { setF((x) => ({ ...x, [k]: v })); setErrors((e) => ({ ...e, [k]: undefined })); };
 
@@ -91,11 +94,12 @@ const BriefForm = ({ order, onAct, busy }) => {
     const err = {};
     if (!f.targetUrl.trim()) err.targetUrl = 'Add the page you want the link to point to.';
     if (!f.anchorText.trim()) err.anchorText = 'Add the anchor text.';
-    if (f.contentSource === 'buyer' && !f.articleLink.trim() && !file) err.articleLink = 'Upload your article or paste a link to it.';
+    if (f.contentSource === 'buyer' && !f.articleHtml && !f.articleLink.trim()) err.articleHtml = 'Paste your article, or share a link to it.';
+    if (f.contentSource === 'buyer' && f.articleHtml && words < 50) err.articleHtml = `The article looks too short (${words} words).`;
     if (f.contentSource === 'seller' && f.contentNotes.trim().length < 20) err.contentNotes = 'Tell the publisher what to write about (at least 20 characters).';
     setErrors(err);
     if (Object.keys(err).length) return;
-    const res = await onAct('brief', { ...f, articleFileId: file?.fileId });
+    const res = await onAct('brief', f.contentSource === 'buyer' ? f : { ...f, articleHtml: undefined, articleLink: undefined });
     if (res?.field) setErrors({ [res.field]: res.message });
   };
 
@@ -112,8 +116,8 @@ const BriefForm = ({ order, onAct, busy }) => {
   return (
     <form onSubmit={submit} noValidate className="space-y-4">
       <div className="grid gap-2 sm:grid-cols-2">
-        {choice('buyer', 'I’ll provide the article', 'Upload it or share a link. The publisher publishes it.')}
-        {choice('seller', 'The publisher writes it', `You approve the draft first (up to ${order.rules?.revisionRounds} rounds of changes).`)}
+        {choice('buyer', 'I have the article', 'Paste it below (formatting from Word or Google Docs is kept).')}
+        {choice('seller', 'The publisher writes it', 'Tell them the topic. Adds about 2 days.')}
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Target URL" required htmlFor="b-url" error={errors.targetUrl} hint="The page your link points to">
@@ -124,12 +128,12 @@ const BriefForm = ({ order, onAct, busy }) => {
         </Field>
       </div>
       {f.contentSource === 'buyer' && (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Your article" error={errors.articleLink}>
-            <FilePicker orderId={order._id} kind="article" value={file} onChange={(v) => { setFile(v); setErrors((e) => ({ ...e, articleLink: undefined })); }} label="Upload the article" />
+        <div className="space-y-3">
+          <Field label="Your article" required htmlFor="b-article" error={errors.articleHtml}>
+            <ArticleEditor id="b-article" value={f.articleHtml} onChange={(html, meta) => { set('articleHtml', html); setWords(meta.words); }} error={errors.articleHtml} />
           </Field>
-          <Field label="…or a link to it" htmlFor="b-link" hint="Google Docs, Dropbox…">
-            <Input id="b-link" value={f.articleLink} onChange={(e) => set('articleLink', e.target.value)} placeholder="https://docs.google.com/…" />
+          <Field label="…or a link to it instead" htmlFor="b-link" hint="Google Docs, Dropbox…" error={errors.articleLink}>
+            <Input id="b-link" value={f.articleLink} onChange={(e) => set('articleLink', e.target.value)} placeholder="https://docs.google.com/…" error={errors.articleLink} />
           </Field>
         </div>
       )}
@@ -258,15 +262,15 @@ const OrderActions = ({ order, onAct, busy }) => {
             <div className="flex flex-wrap items-start gap-2 border-t border-line pt-4">
               {has('cancel') && (
                 <NoteAction
-                  label="Cancel order"
+                  label={role === 'seller' && !order.deliveredAt ? 'Decline order' : 'Cancel order'}
                   icon={XCircle}
                   variant="ghost"
-                  field={role === 'seller' ? 'Why are you cancelling?' : 'Reason (optional)'}
+                  field={role === 'seller' ? 'Why can\u2019t you take this order?' : 'Reason (optional)'}
                   required={role === 'seller'}
                   hint={role === 'seller' ? 'The buyer sees this.' : undefined}
                   onSubmit={noteAct('cancel')}
                   busy={busy}
-                  submitLabel="Cancel order"
+                  submitLabel={role === 'seller' && !order.deliveredAt ? 'Decline order' : 'Cancel order'}
                 />
               )}
               {has('dispute') && (

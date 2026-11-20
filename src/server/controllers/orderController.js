@@ -9,14 +9,20 @@ import { str, objectId, oneOf, ValidationError } from '../validate';
 import { rateLimit, MINUTE } from '../rateLimit';
 import { saveOrderFile, findOrderFile, openDownload, KINDS } from '../files';
 import {
-  roleOf, availableActions, runAction, isLate, addDays, LATE_GRACE_DAYS,
+  roleOf, availableActions, runAction, isLate, addDays, LATE_GRACE_DAYS, readBrief, addEvent,
 } from '../orderFlow';
+import Listing from '../models/Listing';
+import { cleanArticle, wordCount } from '../articleHtml';
+import { runCheck, startMonitoring, problemText } from '../linkMonitor';
+import { url as urlField, num } from '../validate';
 import { ORDER_STATUSES, OPEN_STATUSES, WAITING_ON } from '@/data/orderStatus';
 import LEGAL from '@/data/legal';
 import { placeOrders } from '../buying';
 
-// POST /api/orders { listingId, couponCode? }: "Buy" for one website. The
-// cart checkout (cartController) places several through the same code.
+// POST /api/orders { listingId, couponCode?, clientName?, ...brief }: the
+// one-form order. The brief (who writes, article, target URL, anchor text)
+// comes with the order, so the publisher can publish straight away. The cart
+// checkout places several orders through the same code, without a brief.
 export const createOrder = async (request, params, user) => {
   try {
     const limited = rateLimit('order-create', user.id, { limit: 20, windowMs: 10 * MINUTE });
@@ -24,7 +30,9 @@ export const createOrder = async (request, params, user) => {
     const body = await readBody(request);
     const listingId = objectId(body.listingId, 'listingId', 'Listing');
     const couponCode = str(body.couponCode, 'couponCode', 'Coupon code', { required: false, max: 40 });
-    const { orders } = await placeOrders(user, [listingId], { couponCode });
+    const clientName = str(body.clientName, 'clientName', 'Client name', { required: false, max: 120 });
+    const brief = readBrief(body);
+    const { orders } = await placeOrders(user, [listingId], { couponCode, brief, clientName });
     return json(orders[0], 201);
   } catch (error) {
     return serverError(error);
@@ -47,7 +55,10 @@ const listView = (order, role) => ({
   acceptBy: order.acceptBy,
   reviewBy: order.reviewBy,
   late: isLate(order),
-  yourTurn: WAITING_ON[order.status] === role,
+  yourTurn: order.kind !== 'self' && WAITING_ON[order.status] === role,
+  kind: order.kind || 'marketplace',
+  // The orderer's private client name: shown to them and to our team only.
+  clientName: role === 'seller' && order.kind !== 'self' ? undefined : order.clientName,
 });
 
 // Filters shared by "my orders", "my sales" and the admin list.
@@ -92,7 +103,7 @@ const listOrders = async (request, base, role, populateOther) => {
 
 export const getMyOrders = async (request, params, user) => {
   try {
-    return await listOrders(request, { buyer: user.id }, 'buyer', 'seller');
+    return await listOrders(request, { buyer: user.id, kind: { $ne: 'self' } }, 'buyer', 'seller');
   } catch (error) {
     return serverError(error);
   }
@@ -154,6 +165,8 @@ const detailView = (order, role) => {
     if (o.buyer) delete o.buyer.email;
     if (o.seller) delete o.seller.email;
   }
+  // The buyer's client is their business, not the publisher's.
+  if (role === 'seller' && o.kind !== 'self') delete o.clientName;
   // Sellers earn the full price; a buyer's coupon is not their business.
   if (role === 'seller') {
     delete o.discount;
@@ -281,6 +294,73 @@ export const downloadFile = async (request, params, user) => {
         'Cache-Control': 'private, no-store',
       },
     });
+  } catch (error) {
+    return serverError(error);
+  }
+};
+
+// POST /api/orders/own { listingId, clientName?, price?, targetUrl, anchorText,
+// articleHtml?, liveLink }: a seller logs a post they published on one of
+// their own websites for an outside client. It is recorded as a completed
+// order (no buyer, no fee), the live link is checked now, and then it is
+// monitored like any sold link.
+export const logOwnPost = async (request, params, user) => {
+  try {
+    const limited = rateLimit('own-post', user.id, { limit: 30, windowMs: 10 * MINUTE });
+    if (limited) return limited;
+    const body = await readBody(request);
+    const listingId = objectId(body.listingId, 'listingId', 'Website');
+    const listing = await Listing.findOne({ _id: listingId, isDeleted: { $ne: true } });
+    if (!listing || String(listing.seller) !== user.id) {
+      throw new ValidationError('Choose one of your own websites', 'listingId');
+    }
+    const clientName = str(body.clientName, 'clientName', 'Client name', { required: false, max: 120 });
+    const price = num(body.price, 'price', 'Price charged', { required: false, min: 0, max: 100000 });
+    const targetUrl = urlField(body.targetUrl, 'targetUrl', 'Target URL');
+    const anchorText = str(body.anchorText, 'anchorText', 'Anchor text', { max: 200 });
+    const articleHtml = cleanArticle(body.articleHtml, { minWords: 1 });
+    const liveLink = urlField(body.liveLink, 'liveLink', 'Live URL');
+    const host = new URL(liveLink).hostname.replace(/^www\./, '').toLowerCase();
+    const domain = (listing.domain || '').toLowerCase();
+    if (domain && host !== domain && !host.endsWith(`.${domain}`)) {
+      throw new ValidationError(`The live URL must be on ${domain}.`, 'liveLink');
+    }
+
+    const now = new Date();
+    const order = new Order({
+      kind: 'self',
+      listing: listing._id,
+      buyer: user.id,
+      seller: user.id,
+      site: { domain: listing.domain, url: listing.url },
+      price: price ?? 0,
+      sellerEarning: 0,
+      turnaroundDays: listing.turnaroundDays ?? 3,
+      linkType: listing.linkType || 'dofollow',
+      linkValidity: listing.linkValidity || 'permanent',
+      contentSource: 'seller',
+      clientName,
+      targetUrl,
+      anchorText,
+      ...(articleHtml ? { articleHtml, articleWords: wordCount(articleHtml) } : {}),
+      liveLink,
+      status: 'completed',
+      briefAt: now,
+      deliveredAt: now,
+      completedAt: now,
+      completedBy: 'self',
+    });
+    // Same check as a marketplace delivery: a missing, nofollow or gone link
+    // is refused straight away.
+    const check = await runCheck(order, { source: 'delivery', by: user.id });
+    if (check.verdict === 'problem') {
+      throw new ValidationError(`We checked ${liveLink} and found a problem: ${problemText(check.problems)}. Fix it and try again.`, 'liveLink');
+    }
+    order.set('link.status', check.verdict);
+    startMonitoring(order, now);
+    addEvent(order, { by: user.id, role: 'seller', type: 'own_post', note: clientName ? `For ${clientName}` : undefined });
+    await order.save();
+    return json({ _id: order._id, verdict: check.verdict, problems: check.problems }, 201);
   } catch (error) {
     return serverError(error);
   }

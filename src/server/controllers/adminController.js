@@ -16,9 +16,9 @@ export const getPlatformStats = async () => {
     const [totalUsers, totalListings, totalOrders, revenueRows, recentOrders] = await Promise.all([
       User.countDocuments(),
       Listing.countDocuments({ isDeleted: { $ne: true } }),
-      Order.countDocuments(),
-      Order.aggregate([{ $match: { status: 'completed' } }, { $group: { _id: null, total: { $sum: '$price' } } }]),
-      Order.find()
+      Order.countDocuments({ kind: { $ne: 'self' } }),
+      Order.aggregate([{ $match: { status: 'completed', kind: { $ne: 'self' } } }, { $group: { _id: null, total: { $sum: '$price' } } }]),
+      Order.find({ kind: { $ne: 'self' } })
         .populate('buyer', 'name')
         .populate('listing', 'url')
         .sort({ createdAt: -1 })

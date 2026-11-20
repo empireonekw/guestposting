@@ -5,9 +5,7 @@ import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import api from '@/lib/api';
 import {
-  LayoutGrid, History, Layers, PlusSquare, Globe, ShoppingBag, Users, Settings, LogOut, Bell,
-  Info, CheckCircle2, X, ChevronDown, PanelLeftClose, PanelLeftOpen, Menu, ArrowUpRight, Plus, ClipboardCheck,
-  MessageSquare, Code2, Tags, Link2, ShoppingCart, Heart, BellRing, TicketPercent, ScanSearch,
+  LayoutGrid, History, Layers, PlusSquare, Globe, ShoppingBag, Users, Settings, LogOut, Bell, Info, CheckCircle2, X, ChevronDown, PanelLeftClose, PanelLeftOpen, Menu, ArrowUpRight, Plus, ClipboardCheck, MessageSquare, Code2, Tags, Link2, ShoppingCart, Heart, BellRing, TicketPercent, ScanSearch, ClipboardList, FileSpreadsheet, PenLine,
 } from 'lucide-react';
 import BRAND from '@/data/brand';
 import Logo from '@/components/ui/Logo';
@@ -33,6 +31,8 @@ const menuFor = (role) => {
       ] },
       { title: 'Marketplace', items: [
         { name: 'Orders', icon: ShoppingBag, path: '/admin/orders' },
+        { name: 'My orders & client posts', icon: ClipboardList, path: '/orders' },
+        { name: 'Site sheets', icon: FileSpreadsheet, path: '/sheets' },
         { name: 'Link monitor', icon: Link2, path: '/admin/links' },
         { name: 'Coupons', icon: TicketPercent, path: '/admin/coupons' },
         { name: 'Find sites', icon: Globe, path: '/sites' },
@@ -54,11 +54,13 @@ const menuFor = (role) => {
       { title: 'Selling', items: [
         { name: 'My websites', icon: Layers, path: '/my-listings' },
         { name: 'Add website', icon: PlusSquare, path: '/add-listing' },
-        { name: 'My sales', icon: ShoppingBag, path: '/orders' },
+        { name: 'Orders', icon: ShoppingBag, path: '/orders' },
+        { name: 'Log a post on my site', icon: PenLine, path: '/orders/own/new' },
         { name: 'Messages', icon: MessageSquare, path: '/messages', badge: 'messages' },
       ] },
       { title: 'Marketplace', items: [
         { name: 'Find sites', icon: Globe, path: '/sites' },
+        { name: 'Site sheets', icon: FileSpreadsheet, path: '/sheets' },
         { name: 'Cart', icon: ShoppingCart, path: '/cart', badge: 'cart' },
         { name: 'Saved sites', icon: Heart, path: '/saved' },
         { name: 'Saved searches', icon: BellRing, path: '/saved-searches' },

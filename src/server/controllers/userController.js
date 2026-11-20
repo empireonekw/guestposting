@@ -9,7 +9,8 @@ export const getUserProfile = async (request, params, authUser) => {
     const user = await User.findById(authUser.id).select('-password');
 
     const orders = await Order.find({
-      $or: [{ buyer: authUser.id }, { seller: authUser.id }]
+      $or: [{ buyer: authUser.id }, { seller: authUser.id }],
+      kind: { $ne: 'self' },
     });
 
     const stats = {

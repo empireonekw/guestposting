@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import defineModel from './defineModel';
 
 // A publisher-list search a buyer saved (Module 6). `params` are the same
 // URL parameters /sites uses, so opening it shows the same results. With
@@ -23,5 +24,4 @@ const savedSearchSchema = new mongoose.Schema(
 savedSearchSchema.index({ user: 1, createdAt: -1 });
 savedSearchSchema.index({ alerts: 1, nextAlertAt: 1 });
 
-if (process.env.NODE_ENV !== 'production' && mongoose.models.SavedSearch) mongoose.deleteModel('SavedSearch');
-export default mongoose.models.SavedSearch || mongoose.model('SavedSearch', savedSearchSchema);
+export default defineModel('SavedSearch', savedSearchSchema);
